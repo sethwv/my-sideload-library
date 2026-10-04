@@ -112,6 +112,25 @@ function setShelfButtonState(btn, onShelf) {
   }
 }
 
+function setQuickActionsLayout(btn, showRecent) {
+  var quickActions = btn;
+  while (quickActions && quickActions.tagName !== "TABLE") {
+    quickActions = quickActions.parentNode;
+  }
+  if (!quickActions) {
+    return;
+  }
+  var quickButtons = quickActions.getElementsByTagName("button");
+  var hasMore = false;
+  for (var i = 0; i < quickButtons.length; i++) {
+    if ((" " + quickButtons[i].className + " ").indexOf(" shelf-quick-more ") > -1) {
+      hasMore = true;
+      break;
+    }
+  }
+  quickActions.className = "shelf-quick-actions shelf-quick-actions-" + (showRecent ? (hasMore ? "three" : "two") : (hasMore ? "favorites-more" : "one"));
+}
+
 function syncShelfControls(bookId, shelfId, onShelf, recent) {
   var buttons = document.getElementsByTagName("button");
   var i;
@@ -120,15 +139,23 @@ function syncShelfControls(bookId, shelfId, onShelf, recent) {
       setShelfButtonState(buttons[i], onShelf);
     }
   }
-  if (!recent) {
-    return;
-  }
   var recentButton = document.getElementById("book-" + bookId + "-recent");
   var recentForm = document.getElementById("book-" + bookId + "-recent-form");
+  var recentSlot = document.getElementById("book-" + bookId + "-recent-slot");
   if (!recentButton || !recentForm) {
     return;
   }
+  if (!recent) {
+    if (recentSlot) {
+      recentSlot.style.display = "none";
+    }
+    setQuickActionsLayout(recentButton, false);
+    return;
+  }
   recentButton.setAttribute("data-shelf-id", recent.id);
+  recentButton.disabled = false;
+  recentButton.removeAttribute("disabled");
+  recentButton.type = "submit";
   setShelfButtonState(recentButton, recent.onShelf);
   recentForm.action = "/books/" + bookId + "/shelves/" + recent.id;
   var labels = recentButton.getElementsByTagName("span");
@@ -138,6 +165,10 @@ function syncShelfControls(bookId, shelfId, onShelf, recent) {
       break;
     }
   }
+  if (recentSlot) {
+    recentSlot.style.display = "";
+  }
+  setQuickActionsLayout(recentButton, true);
 }
 
 function toggleShelfForButton(btn, isViewing) {

@@ -272,7 +272,8 @@ func TestModalDisablesLibrarySearchAndShelfQuickControlsUseEditableShelves(t *te
 	}
 	for _, want := range []string{
 		`EditableShelfCount`,
-		`class="shelf-quick-action" disabled>Recent`,
+		`favorites-more`,
+		`recent-slot`,
 		`aria-label="More shelves"`,
 	} {
 		if !strings.Contains(string(partial), want) {

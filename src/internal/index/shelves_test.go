@@ -236,13 +236,20 @@ func TestDeleteShelfForManagerAndUserCleanup(t *testing.T) {
 	}
 }
 
-func TestRecentShelfRequiresBookMembership(t *testing.T) {
+func TestRecentShelfPrefersBookMembershipThenLastUsed(t *testing.T) {
 	db := openTestDB(t)
 	reading, err := db.CreateShelf("alice", "Reading", 25)
 	if err != nil {
 		t.Fatal(err)
 	}
+	later, err := db.CreateShelf("alice", "Later", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := db.AddBookToShelf(reading.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.sql.Exec(`UPDATE shelves SET last_used_at = CASE id WHEN ? THEN 10 WHEN ? THEN 20 END WHERE id IN (?, ?)`, reading.ID, later.ID, reading.ID, later.ID); err != nil {
 		t.Fatal(err)
 	}
 	recent, err := db.RecentShelf("alice", 10)
@@ -250,15 +257,15 @@ func TestRecentShelfRequiresBookMembership(t *testing.T) {
 		t.Fatalf("RecentShelf for member book = %+v, %v; want Reading", recent, err)
 	}
 	recent, err = db.RecentShelf("alice", 99)
-	if err != nil || recent != nil {
-		t.Fatalf("RecentShelf without membership = %+v, %v; want nil", recent, err)
+	if err != nil || recent == nil || recent.ID != later.ID {
+		t.Fatalf("RecentShelf fallback = %+v, %v; want Later", recent, err)
 	}
-	if err := db.RemoveBookFromShelf(reading.ID, 10); err != nil {
+	if err := db.RemoveBookFromShelf(later.ID, 99); err != nil {
 		t.Fatal(err)
 	}
-	recent, err = db.RecentShelf("alice", 10)
-	if err != nil || recent != nil {
-		t.Fatalf("RecentShelf after removal = %+v, %v; want nil", recent, err)
+	recent, err = db.RecentShelf("alice", 99)
+	if err != nil || recent == nil || recent.ID != later.ID {
+		t.Fatalf("RecentShelf after removal = %+v, %v; want Later", recent, err)
 	}
 }
 
@@ -286,8 +293,8 @@ func TestRecentShelfIncludesWritableSharedShelves(t *testing.T) {
 		t.Fatal(err)
 	}
 	recent, err = db.RecentShelf("bob", 99)
-	if err != nil || recent != nil {
-		t.Fatalf("RecentShelf without membership for shared member = %+v, %v; want nil", recent, err)
+	if err != nil || recent == nil || recent.ID != shared.ID {
+		t.Fatalf("RecentShelf fallback for shared member = %+v, %v; want Club Picks", recent, err)
 	}
 }
 
