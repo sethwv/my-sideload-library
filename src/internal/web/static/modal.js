@@ -240,7 +240,30 @@ function getQueryParam(name) {
   return null;
 }
 
+function abbreviateTruncatedCardAuthors() {
+  var authors = document.getElementsByTagName("div");
+  for (var i = 0; i < authors.length; i++) {
+    if ((" " + authors[i].className + " ").indexOf(" card-author ") > -1 && authors[i].scrollWidth > authors[i].clientWidth + 4) {
+      var links = authors[i].getElementsByTagName("a");
+      for (var j = 0; j < links.length; j++) {
+        var shortName = links[j].getAttribute("data-short-author");
+        if (shortName) {
+          links[j].textContent = shortName;
+        }
+      }
+      if (links.length > 1 && authors[i].scrollWidth > authors[i].clientWidth) {
+        var firstLink = links[0];
+        var remainingAuthors = links.length - 1;
+        authors[i].textContent = "";
+        authors[i].appendChild(firstLink);
+        authors[i].appendChild(document.createTextNode(" +" + remainingAuthors));
+      }
+    }
+  }
+}
+
 window.onload = function () {
+  abbreviateTruncatedCardAuthors();
   var bookId = getQueryParam("book");
   if (bookId) {
     openModal("book-" + bookId);

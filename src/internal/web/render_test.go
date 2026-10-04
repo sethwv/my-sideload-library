@@ -28,6 +28,22 @@ func TestRenderIncludesBuildVersion(t *testing.T) {
 	}
 }
 
+func TestShortAuthorName(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		want string
+	}{
+		{name: "William Wordsworth", want: "W. Wordsworth"},
+		{name: "Octavia E. Butler", want: "O. E. Butler"},
+		{name: "J. R. R. Tolkien", want: "J. R. R. Tolkien"},
+		{name: "Plato", want: "Plato"},
+	} {
+		if got := shortAuthorName(test.name); got != test.want {
+			t.Errorf("shortAuthorName(%q) = %q, want %q", test.name, got, test.want)
+		}
+	}
+}
+
 func TestPageTemplateClonesCachedBase(t *testing.T) {
 	login, err := pageTemplate("login.html")
 	if err != nil {

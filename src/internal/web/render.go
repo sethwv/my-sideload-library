@@ -41,6 +41,7 @@ var templateFuncs = template.FuncMap{
 	"sourceURL":           sourceURL,
 	"plainText":           plainText,
 	"authorNames":         authorNames,
+	"shortAuthorName":     shortAuthorName,
 	"withQueryParam":      withQueryParam,
 	"locationLabel":       locationLabel,
 	"pageURL":             pageURL,
@@ -95,6 +96,18 @@ func locationLabel(root, path string) string {
 // existed — not dependent on that book having been reimported since.
 func authorNames(author string) []string {
 	return epub.CleanAuthorNames([]string{author})
+}
+
+func shortAuthorName(name string) string {
+	parts := strings.Fields(name)
+	if len(parts) < 2 {
+		return name
+	}
+	if strings.HasSuffix(parts[0], ".") {
+		return name
+	}
+	firstName := []rune(parts[0])
+	return string(firstName[0]) + ". " + strings.Join(parts[1:], " ")
 }
 
 // withQueryParam returns rawURL (typically baseData's CurrentURL, a
