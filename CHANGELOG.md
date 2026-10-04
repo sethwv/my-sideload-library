@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added administrator controls to disable accounts and configurable access capabilities for individual users.
+- Added private, shared, and public shelves with member management, configurable creation limits, and administrator shelf management.
+- Added quick Favourites, Recent, and full shelf-picker controls to book details, including shelf downloads in EPUB and KEPUB formats.
+- Added self-service email settings.
+
+### Changed
+
+- Consolidated password, digest, bookmark-link, and available email settings under the account pages.
+- Made password reset available only when an administrator enables it after configuring SMTP and a public URL.
+
+### Security
+
+- Revoked active sessions when an administrator disables an account and blocked disabled accounts from authentication flows.
+
 ## [v0.0.3] - 2026-10-02
 
 ### Added
