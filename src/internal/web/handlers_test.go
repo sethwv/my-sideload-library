@@ -738,6 +738,51 @@ func TestAccountShelvesLifecycleRequiresOwnerCapability(t *testing.T) {
 	}
 }
 
+func TestShelfManagerCanManageAnotherUsersMembers(t *testing.T) {
+	server := newAccountTestServer(t)
+	for _, username := range []string{"owner", "manager", "member"} {
+		if err := server.Users.Create(username, "password", users.RoleMember, true, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manager, err := server.Users.UserByUsername("manager")
+	if err != nil || manager == nil {
+		t.Fatal("manager account missing")
+	}
+	grant := true
+	if err := server.Users.SetPermissionOverride(manager.ID, users.PermissionManageShelves, &grant); err != nil {
+		t.Fatal(err)
+	}
+	shelf, err := server.DB.CreateShelf("owner", "Club Picks", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.DB.SetShelfVisibility("owner", shelf.ID, index.ShelfVisibilityShared); err != nil {
+		t.Fatal(err)
+	}
+
+	add := authenticatedRequest(t, server, http.MethodPost, "/shelves/1/settings/members", "manager", url.Values{"username": {"member"}})
+	add.SetPathValue("id", strconv.FormatInt(shelf.ID, 10))
+	addRecorder := httptest.NewRecorder()
+	server.Auth.RequireAuth(http.HandlerFunc(server.ShelfSettingsMemberAdd)).ServeHTTP(addRecorder, add)
+	if addRecorder.Code != http.StatusSeeOther {
+		t.Fatalf("manager add status = %d, want %d: %s", addRecorder.Code, http.StatusSeeOther, addRecorder.Body.String())
+	}
+
+	remove := authenticatedRequest(t, server, http.MethodPost, "/shelves/1/settings/members/member/delete", "manager", nil)
+	remove.SetPathValue("id", strconv.FormatInt(shelf.ID, 10))
+	remove.SetPathValue("username", "member")
+	removeRecorder := httptest.NewRecorder()
+	server.Auth.RequireAuth(http.HandlerFunc(server.ShelfSettingsMemberDelete)).ServeHTTP(removeRecorder, remove)
+	if removeRecorder.Code != http.StatusSeeOther {
+		t.Fatalf("manager remove status = %d, want %d: %s", removeRecorder.Code, http.StatusSeeOther, removeRecorder.Body.String())
+	}
+	members, err := server.DB.ListShelfMembersForManager(shelf.ID)
+	if err != nil || len(members) != 0 {
+		t.Errorf("members after manager remove = %+v, %v; want none", members, err)
+	}
+}
+
 func enableTestSMTP(t *testing.T, server *Server) {
 	t.Helper()
 	if err := server.Users.SaveSMTPSettings(mail.Settings{Host: "smtp.example.com", FromAddress: "library@example.com"}); err != nil {

@@ -1357,8 +1357,14 @@ func (s *Server) ShelfSettingsMemberAdd(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	username, _ := auth.UsernameFromContext(r.Context())
-	if err := s.DB.AddShelfMember(username, id, member); err != nil {
-		s.renderShelfSettings(w, r, id, err.Error())
+	var addErr error
+	if s.Users.Can(username, users.PermissionManageShelves) {
+		addErr = s.DB.AddShelfMemberForManager(id, member)
+	} else {
+		addErr = s.DB.AddShelfMember(username, id, member)
+	}
+	if addErr != nil {
+		s.renderShelfSettings(w, r, id, addErr.Error())
 		return
 	}
 	http.Redirect(w, r, "/shelves/"+strconv.FormatInt(id, 10)+"/settings", http.StatusSeeOther)
@@ -1371,8 +1377,14 @@ func (s *Server) ShelfSettingsMemberDelete(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	username, _ := auth.UsernameFromContext(r.Context())
-	if err := s.DB.RemoveShelfMember(username, id, r.PathValue("username")); err != nil {
-		s.renderShelfSettings(w, r, id, err.Error())
+	var removeErr error
+	if s.Users.Can(username, users.PermissionManageShelves) {
+		removeErr = s.DB.RemoveShelfMemberForManager(id, r.PathValue("username"))
+	} else {
+		removeErr = s.DB.RemoveShelfMember(username, id, r.PathValue("username"))
+	}
+	if removeErr != nil {
+		s.renderShelfSettings(w, r, id, removeErr.Error())
 		return
 	}
 	http.Redirect(w, r, "/shelves/"+strconv.FormatInt(id, 10)+"/settings", http.StatusSeeOther)

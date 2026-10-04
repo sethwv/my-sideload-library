@@ -421,15 +421,32 @@ func (d *DB) ListShelfMembersForManager(id int64) ([]ShelfAccess, error) {
 }
 
 func (d *DB) AddShelfMember(owner string, id int64, member string) error {
-	if strings.TrimSpace(member) == "" || member == owner {
+	return d.addShelfMember(id, owner, member)
+}
+
+func (d *DB) AddShelfMemberForManager(id int64, member string) error {
+	return d.addShelfMember(id, "", member)
+}
+
+func (d *DB) addShelfMember(id int64, owner, member string) error {
+	if strings.TrimSpace(member) == "" {
 		return fmt.Errorf("invalid shelf member")
 	}
-	shelf, err := d.GetOwnedShelf(owner, id)
+	var shelf *Shelf
+	var err error
+	if owner == "" {
+		shelf, err = d.GetShelf(id)
+	} else {
+		shelf, err = d.GetOwnedShelf(owner, id)
+	}
 	if err != nil || shelf == nil || shelf.IsSystem {
 		if err != nil {
 			return err
 		}
 		return fmt.Errorf("shelf not found")
+	}
+	if member == shelf.Username {
+		return fmt.Errorf("invalid shelf member")
 	}
 	if shelf.Visibility == ShelfVisibilityPrivate {
 		return fmt.Errorf("private shelves cannot have members")
@@ -439,7 +456,21 @@ func (d *DB) AddShelfMember(owner string, id int64, member string) error {
 }
 
 func (d *DB) RemoveShelfMember(owner string, id int64, member string) error {
-	shelf, err := d.GetOwnedShelf(owner, id)
+	return d.removeShelfMember(id, owner, member)
+}
+
+func (d *DB) RemoveShelfMemberForManager(id int64, member string) error {
+	return d.removeShelfMember(id, "", member)
+}
+
+func (d *DB) removeShelfMember(id int64, owner, member string) error {
+	var shelf *Shelf
+	var err error
+	if owner == "" {
+		shelf, err = d.GetShelf(id)
+	} else {
+		shelf, err = d.GetOwnedShelf(owner, id)
+	}
 	if err != nil || shelf == nil || shelf.IsSystem {
 		if err != nil {
 			return err

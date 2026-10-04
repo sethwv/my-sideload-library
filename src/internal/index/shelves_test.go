@@ -298,6 +298,27 @@ func TestRecentShelfIncludesWritableSharedShelves(t *testing.T) {
 	}
 }
 
+func TestShelfManagersCanManageAnotherUsersMembers(t *testing.T) {
+	db := openTestDB(t)
+	shelf, err := db.CreateShelf("alice", "Club Picks", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetShelfVisibility("alice", shelf.ID, ShelfVisibilityShared); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AddShelfMemberForManager(shelf.ID, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	members, err := db.ListShelfMembersForManager(shelf.ID)
+	if err != nil || len(members) != 1 || members[0].Username != "bob" {
+		t.Fatalf("members after manager add = %+v, %v; want bob", members, err)
+	}
+	if err := db.RemoveShelfMemberForManager(shelf.ID, "bob"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestShelfBooks_AddRemoveIsOn(t *testing.T) {
 	db := openTestDB(t)
 	shelfID, err := db.EnsureSystemShelf("alice", "favourites", "Favourites")
