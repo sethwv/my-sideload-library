@@ -251,7 +251,7 @@ func (s *Server) SetupSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Logout(w http.ResponseWriter, r *http.Request) {
-	s.Auth.ClearSession(w)
+	s.Auth.ClearSession(w, r)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 

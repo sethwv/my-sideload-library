@@ -88,23 +88,28 @@ func (a *Authenticator) issueSession(w http.ResponseWriter, r *http.Request, use
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expires,
 	})
 }
 
-// ClearSession removes the session cookie.
-func (a *Authenticator) ClearSession(w http.ResponseWriter) {
+// ClearSession removes the session cookie using the current request's
+// transport security so it matches the cookie that was issued at login.
+func (a *Authenticator) ClearSession(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     CookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
+}
+
+func isSecureRequest(r *http.Request) bool {
+	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 // VerifySession reports the signed-in username and whether the session is
