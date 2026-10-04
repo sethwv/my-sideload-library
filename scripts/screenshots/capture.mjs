@@ -99,10 +99,19 @@ async function runAction(page, context, action, scenarioID) {
     case "toggle_shelf": {
       const shelf = resolve(value, context, scenarioID);
       const button = page.locator(".modal-overlay:visible button.shelf-quick-action, .modal-overlay:visible button.shelf-toggle", { hasText: shelf }).first();
+      const wasOn = await button.evaluate((element) => element.classList.contains("is-on"));
+      const bookID = await button.getAttribute("data-book-id");
+      const shelfID = await button.getAttribute("data-shelf-id");
       await button.click();
-      if (!await button.evaluate((element) => element.classList.contains("is-on"))) {
-        await page.locator(".modal-overlay:visible button.is-on", { hasText: shelf }).first().waitFor();
-      }
+      await page.waitForFunction(({ bookID, shelfID, wasOn }) => {
+        const buttons = document.getElementsByTagName("button");
+        for (let i = 0; i < buttons.length; i++) {
+          if (buttons[i].getAttribute("data-book-id") === bookID && buttons[i].getAttribute("data-shelf-id") === shelfID) {
+            return buttons[i].classList.contains("is-on") !== wasOn;
+          }
+        }
+        return false;
+      }, { bookID, shelfID, wasOn });
       return;
     }
     case "create_shelf": {
