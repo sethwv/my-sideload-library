@@ -1,7 +1,7 @@
 ---
 title: Admin CLI
 parent: User Guide
-nav_order: 5
+nav_order: 9
 ---
 
 # Admin CLI

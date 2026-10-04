@@ -24,3 +24,15 @@ nav_order: 3
 {% include screenshot-pair.html id="admin-settings" %}
 
 {% include screenshot-pair.html id="admin-tasks" %}
+
+{% include screenshot-pair.html id="account-shelves" %}
+
+{% include screenshot-pair.html id="shelf-settings" %}
+
+{% include screenshot-pair.html id="admin-shelves" %}
+
+{% include screenshot-pair.html id="forgot-password" %}
+
+{% include screenshot-pair.html id="reset-password-invalid" %}
+
+{% include screenshot-pair.html id="invite-accept-invalid" %}

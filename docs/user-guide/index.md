@@ -6,8 +6,8 @@ has_children: true
 
 # User Guide
 
-Use this guide after the library is running. It covers the application itself: finding and downloading books, account preferences, bookmark links for e-readers, and administrator workflows for users, server settings, tasks, email, metadata, and integrations.
+Use this guide after the library is running. It starts with the reader workflow, then covers account and administrator tasks.
 
-Start with the smallest workflow that solves your immediate need. Each guide page then covers advanced configuration, security considerations, and recovery steps where they apply.
+Start with [First Time Setup](first-time-setup/) if this is a new library. Readers will usually need Browsing, Downloading, Shelves, and Account. Operators can use the management pages for people, the server, library metadata, and recovery access.
 
 Deployment, persistent storage, HTTPS, and environment variables remain in [Deployment](../deployment/). Device and browser constraints are covered in [Technical](../technical/).

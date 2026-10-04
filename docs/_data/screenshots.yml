@@ -56,14 +56,44 @@
       placement: top
 
 - id: book-shelves
-  title: Save a favourite
-  description: The shelf control in a book's details, highlighted for adding a book to Favourites.
+  title: Quick shelf controls
+  description: Save a book to Favourites or the most relevant personal shelf from its details.
   actions:
     - login
     - open_book: Pride and Prejudice
   annotations:
-    - selector: ".modal-overlay:visible button.shelf-toggle"
+    - selector: ".modal-overlay:visible button.shelf-quick-action"
       label: Add to Favourites
+      placement: top
+
+- id: shelf-picker
+  title: More shelves
+  description: The expanded shelf picker includes every shelf you can use for the book.
+  actions:
+    - login
+    - create_shelf: Reading list for long named books
+    - create_shelf: Later
+    - open_book: Pride and Prejudice
+    - open_shelf_picker
+  annotations:
+    - selector: ".modal-overlay:visible .shelf-picker-list"
+      label: Add or remove this book from any available shelf
+      placement: top
+
+- id: shelf-control-sync
+  title: Shelf controls stay in sync
+  description: A change in More shelves updates the matching quick control when you return to the book.
+  actions:
+    - login
+    - create_shelf: Reading list for long named books
+    - create_shelf: Later
+    - open_book: Pride and Prejudice
+    - open_shelf_picker
+    - toggle_shelf: Later
+    - back_to_book
+  annotations:
+    - selector: ".modal-overlay:visible .shelf-quick-actions"
+      label: Recent now points to the shelf changed in the picker
       placement: top
 
 - id: favourites-library
@@ -126,6 +156,21 @@
     - selector: 'form[action="/account/bookmark/regenerate"] button'
       label: Create one e-reader bookmark link
       placement: top
+
+- id: account-shelves
+  title: Shelf management
+  description: Create and open personal shelves from the Account area.
+  actions:
+    - login
+    - goto: /account/shelves
+
+- id: shelf-settings
+  title: Shelf settings
+  description: Rename a shelf, control visibility, manage members, or delete it.
+  actions:
+    - login
+    - create_shelf: Screenshot shelf
+    - goto: /shelves/{{shelfID}}/settings
 
 - id: admin-settings
   title: Server settings
@@ -246,6 +291,33 @@
     - login
     - goto: /admin/users
 
+- id: admin-shelves
+  title: Administrator shelf management
+  description: Administrators can inspect shelves across the library.
+  actions:
+    - login
+    - goto: /admin/shelves
+
+- id: forgot-password
+  title: Password reset request
+  description: Readers request a password reset when email recovery is configured.
+  actions:
+    - login
+    - configure_smtp
+    - goto: /forgot-password
+
+- id: reset-password-invalid
+  title: Password reset link
+  description: A reset link displays a password form only while its token is valid.
+  actions:
+    - goto: /reset-password?token=expired-demo-token
+
+- id: invite-accept-invalid
+  title: Invitation link
+  description: An invitation link displays a password form only while its token is valid.
+  actions:
+    - goto: /invite/accept?token=expired-demo-token
+
 - id: admin-add-user
   title: Add a user
   description: The user-creation form for a new library member.
@@ -269,8 +341,8 @@
     - selector: '.modal-overlay:visible [name="role"]'
       label: Assign the least-privileged role
       placement: bottom
-    - selector: '.modal-overlay:visible [name="can_bookmark"]'
-      label: Control e-reader bookmark access
+    - selector: '.modal-overlay:visible .permission-form'
+      label: Adjust individual permissions when needed
       placement: bottom
 
 - id: admin-invite-user

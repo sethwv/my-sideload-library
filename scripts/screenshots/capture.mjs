@@ -98,9 +98,37 @@ async function runAction(page, context, action, scenarioID) {
     }
     case "toggle_shelf": {
       const shelf = resolve(value, context, scenarioID);
-      const button = page.locator(".modal-overlay:visible button.shelf-toggle", { hasText: shelf }).first();
+      const button = page.locator(".modal-overlay:visible button.shelf-quick-action, .modal-overlay:visible button.shelf-toggle", { hasText: shelf }).first();
       await button.click();
-      await page.locator(".modal-overlay:visible button.shelf-toggle.is-on", { hasText: shelf }).waitFor();
+      if (!await button.evaluate((element) => element.classList.contains("is-on"))) {
+        await page.locator(".modal-overlay:visible button.is-on", { hasText: shelf }).first().waitFor();
+      }
+      return;
+    }
+    case "create_shelf": {
+      const name = resolve(value, context, scenarioID);
+      await page.goto(`${baseURL}/account/shelves`, { waitUntil: "networkidle" });
+      await page.locator('input[name="name"]').fill(name);
+      await Promise.all([
+        page.waitForURL(`${baseURL}/account/shelves`),
+        page.locator('form[action="/account/shelves"] button[type="submit"]').click(),
+      ]);
+      const href = await page.locator(".account-shelves a", { hasText: name }).first().getAttribute("href");
+      const match = href && href.match(/^\/shelves\/(\d+)$/);
+      if (!match) throw new Error(`Screenshot ${scenarioID} could not find created shelf ${name}`);
+      context.shelfID = match[1];
+      return;
+    }
+    case "open_shelf_picker": {
+      if (value !== undefined) throw new Error(`Screenshot ${scenarioID} open_shelf_picker does not accept a value`);
+      await page.locator(".modal-overlay:visible .shelf-quick-more").click();
+      await page.locator(".modal-overlay:visible .shelf-picker-list").waitFor();
+      return;
+    }
+    case "back_to_book": {
+      if (value !== undefined) throw new Error(`Screenshot ${scenarioID} back_to_book does not accept a value`);
+      await page.locator(".modal-overlay:visible .modal-back-button").click();
+      await page.locator(".modal-overlay:visible .shelf-quick-actions").waitFor();
       return;
     }
     case "open_modal":

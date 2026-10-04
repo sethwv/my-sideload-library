@@ -3,6 +3,7 @@ package web
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -548,6 +549,54 @@ func TestShelfToggleAddsBookAndRedirects(t *testing.T) {
 	}
 	if !onShelf {
 		t.Error("book was not added to the requested shelf")
+	}
+}
+
+func TestShelfToggleJSONReturnsRecalculatedRecentShelf(t *testing.T) {
+	server := newTestServer(t)
+	if err := server.Users.Create("reader", "reader-password", users.RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := index.Open(filepath.Join(t.TempDir(), "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	server.DB = db
+	bookID := addTestBook(t, db)
+	shelf, err := db.CreateShelf("reader", "Reading", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sessionRecorder := httptest.NewRecorder()
+	server.Auth.IssueSession(sessionRecorder, httptest.NewRequest(http.MethodPost, "/login", nil), "reader")
+	req := httptest.NewRequest(http.MethodPost, "/books/1/shelves/1", nil)
+	req.Header.Set("Accept", "application/json")
+	req.AddCookie(sessionRecorder.Result().Cookies()[0])
+	req.SetPathValue("id", strconv.FormatInt(bookID, 10))
+	req.SetPathValue("shelfID", strconv.FormatInt(shelf.ID, 10))
+	recorder := httptest.NewRecorder()
+
+	server.Auth.RequireAuth(http.HandlerFunc(server.ShelfToggle)).ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	var response struct {
+		OnShelf bool `json:"onShelf"`
+		Recent  struct {
+			ID      int64  `json:"id"`
+			Name    string `json:"name"`
+			OnShelf bool   `json:"onShelf"`
+		} `json:"recent"`
+	}
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if !response.OnShelf || response.Recent.ID != shelf.ID || response.Recent.Name != "Reading" || !response.Recent.OnShelf {
+		t.Errorf("response = %+v, want selected Reading as the recent shelf", response)
 	}
 }
 

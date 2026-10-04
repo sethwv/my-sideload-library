@@ -151,6 +151,9 @@ jobs:
 
   build:
     needs: discover
+    # A historical tag or preview branch can have documentation that no longer
+    # builds with current shared tooling. Keep its last published site intact.
+    continue-on-error: ${{ matrix.category != 'development' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
@@ -327,7 +330,7 @@ jobs:
           && printf '%s' "${{ matrix.sitePath }}" > "artifact/${{ matrix.slug }}/site-path.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: docs-${{ matrix.slug }}
+          name: docs-site-${{ matrix.slug }}
           path: artifact
       - name: Prepare latest release at the root
         if: matrix.ref == needs.discover.outputs.latest || (needs.discover.outputs.latest == '' && matrix.ref == 'main')
@@ -355,9 +358,28 @@ jobs:
         with:
           name: docs-root
           path: root-artifact
+      - name: Record version build status
+        if: always()
+        env:
+          REF: ${{ matrix.ref }}
+          SLUG: ${{ matrix.slug }}
+          CATEGORY: ${{ matrix.category }}
+          STATUS: ${{ job.status }}
+        run: >-
+          node --input-type=module -e
+          'import { mkdir, writeFile } from "node:fs/promises";
+          await mkdir("status", { recursive: true });
+          await writeFile("status/build-status.json", JSON.stringify({ ref: process.env.REF, slug: process.env.SLUG, category: process.env.CATEGORY, status: process.env.STATUS }));'
+      - name: Upload version build status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-status-${{ matrix.slug }}
+          path: status
 
   publish:
     needs: [discover, build]
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Check out docs configuration
@@ -373,9 +395,13 @@ jobs:
           || true
       - uses: actions/download-artifact@v5
         with:
-          pattern: docs-*
+          pattern: docs-site-*
           path: incoming
           merge-multiple: true
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: docs-status-*
+          path: statuses
       - name: Assemble published sites
         env:
           REGENERATE_ALL: ${{ inputs.regenerate_all_versions || 'false' }}
@@ -410,6 +436,17 @@ jobs:
           fi
           cp tooling/docs/CNAME publish/CNAME
           touch publish/.nojekyll
+          node --input-type=module <<'NODE'
+          import { appendFile, readdir, readFile } from 'node:fs/promises';
+          import path from 'node:path';
+          const entries = await readdir('statuses', { recursive: true });
+          const reports = await Promise.all(entries.filter((entry) => entry.endsWith('build-status.json')).map(async (entry) => JSON.parse(await readFile(path.join('statuses', entry), 'utf8'))));
+          const failed = reports.filter(({ status }) => status !== 'success');
+          if (failed.length) {
+            const summary = ['## Documentation versions retained', '', 'The following version builds failed. Their previously published documentation was retained:', '', ...failed.map(({ ref, category }) => `- \`${ref}\` (${category})`), ''].join('\n');
+            await appendFile(process.env.GITHUB_STEP_SUMMARY, summary);
+          }
+          NODE
       - name: Publish complete documentation tree
         working-directory: publish
         env:
