@@ -110,6 +110,17 @@ function setShelfButtonState(btn, onShelf) {
   } else if (!onShelf && hasClass) {
     btn.className = (" " + btn.className + " ").replace(" is-on ", " ").replace(/^\s+|\s+$/g, "");
   }
+  var glyphs = btn.getElementsByTagName("svg");
+  for (var i = 0; i < glyphs.length; i++) {
+    if ((" " + glyphs[i].getAttribute("class") + " ").indexOf(" shelf-check ") > -1) {
+      glyphs[i].style.display = "inline-block";
+      glyphs[i].style.visibility = onShelf ? "visible" : "hidden";
+      glyphs[i].style.opacity = onShelf ? "1" : "0";
+      glyphs[i].style.width = onShelf ? "1em" : "0";
+      glyphs[i].style.height = onShelf ? "1em" : "0";
+      glyphs[i].style.margin = onShelf ? "0 0 0 0.25em" : "0";
+    }
+  }
 }
 
 function setQuickActionsLayout(btn, showRecent) {
