@@ -274,6 +274,7 @@ func TestModalDisablesLibrarySearchAndShelfQuickControlsUseEditableShelves(t *te
 		`EditableShelfCount`,
 		`favorites-more`,
 		`recent-slot`,
+		`style="display:inline-block;visibility:visible;opacity:1;width:1em;height:1em;margin:0 0 0 0.25em"`,
 		`aria-label="More shelves"`,
 	} {
 		if !strings.Contains(string(partial), want) {

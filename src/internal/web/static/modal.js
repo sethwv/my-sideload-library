@@ -113,12 +113,8 @@ function setShelfButtonState(btn, onShelf) {
   var glyphs = btn.getElementsByTagName("svg");
   for (var i = 0; i < glyphs.length; i++) {
     if ((" " + glyphs[i].getAttribute("class") + " ").indexOf(" shelf-check ") > -1) {
-      glyphs[i].style.display = "inline-block";
+      glyphs[i].style.display = onShelf ? "inline-block" : "none";
       glyphs[i].style.visibility = onShelf ? "visible" : "hidden";
-      glyphs[i].style.opacity = onShelf ? "1" : "0";
-      glyphs[i].style.width = onShelf ? "1em" : "0";
-      glyphs[i].style.height = onShelf ? "1em" : "0";
-      glyphs[i].style.margin = onShelf ? "0 0 0 0.25em" : "0";
     }
   }
 }
@@ -164,9 +160,6 @@ function syncShelfControls(bookId, shelfId, onShelf, recent) {
     return;
   }
   recentButton.setAttribute("data-shelf-id", recent.id);
-  recentButton.disabled = false;
-  recentButton.removeAttribute("disabled");
-  recentButton.type = "submit";
   setShelfButtonState(recentButton, recent.onShelf);
   recentForm.action = "/books/" + bookId + "/shelves/" + recent.id;
   var labels = recentButton.getElementsByTagName("span");
@@ -177,7 +170,9 @@ function syncShelfControls(bookId, shelfId, onShelf, recent) {
     }
   }
   if (recentSlot) {
-    recentSlot.style.display = "";
+    recentSlot.style.display = "table-cell";
+    recentButton.disabled = false;
+    recentButton.setAttribute("type", "submit");
   }
   setQuickActionsLayout(recentButton, true);
 }
