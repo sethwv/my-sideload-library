@@ -24,7 +24,17 @@ func (s *Server) applyCoverFromURL(ctx context.Context, bookID int64, rawURL str
 		return fmt.Errorf("refusing to fetch cover url: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	// Build the request URL from the vetted connection target. The path and query
+	// select a cover on that server, but cannot change where the client connects.
+	requestURL := &url.URL{
+		Scheme:     "https",
+		Host:       u.Host,
+		Path:       u.Path,
+		RawPath:    u.RawPath,
+		ForceQuery: u.ForceQuery,
+		RawQuery:   u.RawQuery,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
 		return err
 	}
@@ -38,7 +48,6 @@ func (s *Server) applyCoverFromURL(ctx context.Context, bookID int64, rawURL str
 			return http.ErrUseLastResponse
 		},
 	}
-	// codeql[go/request-forgery]: resolveCoverURL pins the host to a vetted public IP.
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

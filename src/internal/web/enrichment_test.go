@@ -33,6 +33,25 @@ func TestResolveCoverURLPinsPublicAddress(t *testing.T) {
 	}
 }
 
+func TestResolveCoverURLPreservesPathAndQuery(t *testing.T) {
+	originalLookupIP := lookupIP
+	t.Cleanup(func() { lookupIP = originalLookupIP })
+	lookupIP = func(string) ([]net.IP, error) {
+		return []net.IP{net.ParseIP("203.0.113.10")}, nil
+	}
+
+	u, _, _, err := resolveCoverURL("https://covers.example/images/a%20cover.jpg?size=large")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := u.EscapedPath(), "/images/a%20cover.jpg"; got != want {
+		t.Errorf("path = %q, want %q", got, want)
+	}
+	if got, want := u.RawQuery, "size=large"; got != want {
+		t.Errorf("query = %q, want %q", got, want)
+	}
+}
+
 func TestResolveCoverURLRejectsUnsafeTargets(t *testing.T) {
 	originalLookupIP := lookupIP
 	t.Cleanup(func() { lookupIP = originalLookupIP })

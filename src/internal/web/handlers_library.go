@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -283,7 +284,12 @@ func (s *Server) ShelfToggle(w http.ResponseWriter, r *http.Request) {
 		}{OnShelf: !onShelf, Recent: recentState})
 		return
 	}
-	http.Redirect(w, r, safeNext(r.FormValue("next")), http.StatusSeeOther)
+	next := safeNext(r.FormValue("next"))
+	target, err := url.Parse(next)
+	if err != nil || target.Scheme != "" || target.Hostname() != "" || target.User != nil || !strings.HasPrefix(target.Path, "/") || strings.HasPrefix(target.Path, "//") {
+		target = &url.URL{Path: "/"}
+	}
+	http.Redirect(w, r, target.String(), http.StatusSeeOther)
 }
 
 func (s *Server) renderNameIndex(w http.ResponseWriter, r *http.Request, heading, linkBase string, list func() ([]index.NameCount, error)) {

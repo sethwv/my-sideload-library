@@ -552,6 +552,44 @@ func TestShelfToggleAddsBookAndRedirects(t *testing.T) {
 	}
 }
 
+func TestShelfToggleRejectsUnsafeRedirectTargets(t *testing.T) {
+	for _, next := range []string{
+		"https://attacker.example",
+		"//attacker.example",
+		"/\\attacker.example",
+	} {
+		t.Run(next, func(t *testing.T) {
+			server := newTestServer(t)
+			if err := server.Users.Create("reader", "reader-password", users.RoleMember, true, ""); err != nil {
+				t.Fatal(err)
+			}
+
+			db, err := index.Open(filepath.Join(t.TempDir(), "index.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { db.Close() })
+			server.DB = db
+			bookID := addTestBook(t, db)
+			shelfID, err := db.EnsureSystemShelf("reader", "favourites", "Favourites")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			req := authenticatedRequest(t, server, http.MethodPost, "/books/1/shelves/1", "reader", url.Values{"next": {next}})
+			req.SetPathValue("id", strconv.FormatInt(bookID, 10))
+			req.SetPathValue("shelfID", strconv.FormatInt(shelfID, 10))
+			recorder := httptest.NewRecorder()
+
+			server.Auth.RequireAuth(http.HandlerFunc(server.ShelfToggle)).ServeHTTP(recorder, req)
+
+			if recorder.Code != http.StatusSeeOther || recorder.Header().Get("Location") != "/" {
+				t.Errorf("response = (%d, %q), want (%d, %q)", recorder.Code, recorder.Header().Get("Location"), http.StatusSeeOther, "/")
+			}
+		})
+	}
+}
+
 func TestShelfToggleJSONReturnsRecalculatedRecentShelf(t *testing.T) {
 	server := newTestServer(t)
 	if err := server.Users.Create("reader", "reader-password", users.RoleMember, true, ""); err != nil {
