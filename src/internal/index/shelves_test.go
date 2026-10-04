@@ -269,6 +269,35 @@ func TestRecentShelfPrefersBookMembershipThenLastUsed(t *testing.T) {
 	}
 }
 
+func TestRecentShelfIncludesWritableSharedShelves(t *testing.T) {
+	db := openTestDB(t)
+	shared, err := db.CreateShelf("alice", "Club Picks", 25)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetShelfVisibility("alice", shared.ID, ShelfVisibilityShared); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AddShelfMember("alice", shared.ID, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AddBookToShelf(shared.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+
+	recent, err := db.RecentShelf("bob", 10)
+	if err != nil || recent == nil || recent.ID != shared.ID {
+		t.Fatalf("RecentShelf for shared member book = %+v, %v; want Club Picks", recent, err)
+	}
+	if err := db.RemoveBookFromShelf(shared.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+	recent, err = db.RecentShelf("bob", 99)
+	if err != nil || recent == nil || recent.ID != shared.ID {
+		t.Fatalf("RecentShelf fallback for shared member = %+v, %v; want Club Picks", recent, err)
+	}
+}
+
 func TestShelfBooks_AddRemoveIsOn(t *testing.T) {
 	db := openTestDB(t)
 	shelfID, err := db.EnsureSystemShelf("alice", "favourites", "Favourites")

@@ -249,6 +249,38 @@ func TestButtonLinksHaveNoTextDecorationAndVisibleFocus(t *testing.T) {
 	}
 }
 
+func TestModalDisablesLibrarySearchAndShelfQuickControlsUseEditableShelves(t *testing.T) {
+	modal, err := staticFS.ReadFile("static/modal.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`function setLibrarySearchDisabled(disabled)`,
+		`document.getElementById("q")`,
+		`document.getElementById("search-submit")`,
+		`setLibrarySearchDisabled(true)`,
+		`setLibrarySearchDisabled(false)`,
+	} {
+		if !strings.Contains(string(modal), want) {
+			t.Errorf("modal script missing %q", want)
+		}
+	}
+
+	partial, err := templatesFS.ReadFile("templates/partials.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`EditableShelfCount`,
+		`class="shelf-quick-action" disabled>Recent`,
+		`aria-label="More shelves"`,
+	} {
+		if !strings.Contains(string(partial), want) {
+			t.Errorf("shelf controls missing %q", want)
+		}
+	}
+}
+
 func TestBookPopupUsesAnAccessibleMetadataEditIcon(t *testing.T) {
 	body, err := templatesFS.ReadFile("templates/partials.html")
 	if err != nil {

@@ -127,16 +127,13 @@ func (s *Server) renderBookList(w http.ResponseWriter, r *http.Request, p bookLi
 		return
 	}
 	var favoritesShelfID int64
-	personalShelfCount := 0
 	for _, shelf := range shelves {
 		if shelf.IsSystem {
 			favoritesShelfID = shelf.ID
-		} else {
-			personalShelfCount++
 		}
 	}
 	recentShelves := make(map[int64]*index.Shelf)
-	if personalShelfCount > 0 {
+	if len(shelves) > 1 {
 		for _, book := range books {
 			shelf, err := s.DB.RecentShelf(username, book.ID)
 			if err != nil {
@@ -158,7 +155,7 @@ func (s *Server) renderBookList(w http.ResponseWriter, r *http.Request, p bookLi
 	if descending {
 		toggleDir = "asc"
 	}
-	data := map[string]any{"Title": p.heading, "Heading": p.heading, "Books": books, "Sort": sortParam, "Dir": dir, "ToggleDir": toggleDir, "Page": page, "PrevPage": page - 1, "NextPage": page + 1, "HasNext": page < totalPages, "TotalPages": totalPages, "Pages": pages, "Query": search, "Action": p.action, "Name": p.name, "ShelfMemberships": memberships, "ViewingShelfID": p.viewingShelfID, "ManageViewingShelf": p.manageShelf, "Locations": locations, "FavoritesShelfID": favoritesShelfID, "PersonalShelfCount": personalShelfCount, "RecentShelves": recentShelves, "ShelfDownloadFormat": downloadFormat, "ShelfDownloadBooks": shelfDownloadBooks}
+	data := map[string]any{"Title": p.heading, "Heading": p.heading, "Books": books, "Sort": sortParam, "Dir": dir, "ToggleDir": toggleDir, "Page": page, "PrevPage": page - 1, "NextPage": page + 1, "HasNext": page < totalPages, "TotalPages": totalPages, "Pages": pages, "Query": search, "Action": p.action, "Name": p.name, "ShelfMemberships": memberships, "ViewingShelfID": p.viewingShelfID, "ManageViewingShelf": p.manageShelf, "Locations": locations, "FavoritesShelfID": favoritesShelfID, "EditableShelfCount": len(shelves), "RecentShelves": recentShelves, "ShelfDownloadFormat": downloadFormat, "ShelfDownloadBooks": shelfDownloadBooks}
 	mergeInto(data, base)
 	render(w, "library.html", data)
 }

@@ -481,20 +481,23 @@ func (d *DB) DeleteUserShelves(username string) error {
 	})
 }
 
-// RecentShelf prefers the most recently added personal shelf containing bookID
-// and otherwise returns the user's most recently used personal shelf.
+// RecentShelf prefers the most recently added writable non-system shelf
+// containing bookID and otherwise returns the user's most recently used
+// writable non-system shelf.
 func (d *DB) RecentShelf(username string, bookID int64) (*Shelf, error) {
 	var sh Shelf
 	var isSystem int
 	err := d.sql.QueryRow(`SELECT s.id, s.username, s.slug, s.name, s.is_system, s.visibility
 		FROM shelves s JOIN shelf_books sb ON sb.shelf_id = s.id
-		WHERE s.username = ? AND s.is_system = 0 AND sb.book_id = ?
-		ORDER BY sb.added_at DESC, s.id DESC LIMIT 1`, username, bookID,
+		LEFT JOIN shelf_members sm ON sm.shelf_id = s.id AND sm.username = ?
+		WHERE (s.username = ? OR sm.username IS NOT NULL) AND s.is_system = 0 AND sb.book_id = ?
+		ORDER BY sb.added_at DESC, s.id DESC LIMIT 1`, username, username, bookID,
 	).Scan(&sh.ID, &sh.Username, &sh.Slug, &sh.Name, &isSystem, &sh.Visibility)
 	if err == sql.ErrNoRows {
-		err = d.sql.QueryRow(`SELECT id, username, slug, name, is_system, visibility FROM shelves
-			WHERE username = ? AND is_system = 0 AND last_used_at > 0
-			ORDER BY last_used_at DESC, id DESC LIMIT 1`, username,
+		err = d.sql.QueryRow(`SELECT s.id, s.username, s.slug, s.name, s.is_system, s.visibility
+			FROM shelves s LEFT JOIN shelf_members sm ON sm.shelf_id = s.id AND sm.username = ?
+			WHERE (s.username = ? OR sm.username IS NOT NULL) AND s.is_system = 0 AND s.last_used_at > 0
+			ORDER BY s.last_used_at DESC, s.id DESC LIMIT 1`, username, username,
 		).Scan(&sh.ID, &sh.Username, &sh.Slug, &sh.Name, &isSystem, &sh.Visibility)
 	}
 	if err == sql.ErrNoRows {

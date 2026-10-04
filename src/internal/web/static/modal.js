@@ -17,6 +17,17 @@
 // naturally falls.
 var openModalId = null;
 
+function setLibrarySearchDisabled(disabled) {
+  var search = document.getElementById("q");
+  var submit = document.getElementById("search-submit");
+  if (search) {
+    search.disabled = disabled;
+  }
+  if (submit) {
+    submit.disabled = disabled;
+  }
+}
+
 function openModal(id) {
   var el = document.getElementById(id);
   var backdrop = document.getElementById("modal-backdrop");
@@ -24,6 +35,7 @@ function openModal(id) {
     el.style.top = (window.pageYOffset || document.documentElement.scrollTop || 0) + "px";
     el.style.display = "block";
     openModalId = id;
+    setLibrarySearchDisabled(true);
   }
   if (window.syncThemeModeControl) {
     window.syncThemeModeControl();
@@ -44,6 +56,7 @@ function closeModal(id) {
     backdrop.style.display = "none";
   }
   openModalId = null;
+  setLibrarySearchDisabled(false);
   return false;
 }
 
