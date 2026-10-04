@@ -260,6 +260,7 @@ func TestModalDisablesLibrarySearchAndShelfQuickControlsUseEditableShelves(t *te
 		`document.getElementById("search-submit")`,
 		`setLibrarySearchDisabled(true)`,
 		`setLibrarySearchDisabled(false)`,
+		`recentButton.getAttribute("data-shelf-id") === String(shelfId)`,
 	} {
 		if !strings.Contains(string(modal), want) {
 			t.Errorf("modal script missing %q", want)
@@ -272,9 +273,8 @@ func TestModalDisablesLibrarySearchAndShelfQuickControlsUseEditableShelves(t *te
 	}
 	for _, want := range []string{
 		`EditableShelfCount`,
-		`favorites-more`,
-		`recent-slot`,
-		`style="display:inline-block;visibility:visible;opacity:1;width:1em;height:1em;margin:0 0 0 0.25em"`,
+		`class="shelf-quick-action" disabled>Recent`,
+		`shelf-selection-icon`,
 		`aria-label="More shelves"`,
 	} {
 		if !strings.Contains(string(partial), want) {

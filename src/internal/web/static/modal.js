@@ -21,9 +21,6 @@ function setLibrarySearchDisabled(disabled) {
   var search = document.getElementById("q");
   var submit = document.getElementById("search-submit");
   if (search) {
-    if (disabled && search.blur) {
-      search.blur();
-    }
     search.disabled = disabled;
   }
   if (submit) {
@@ -112,30 +109,16 @@ function setShelfButtonState(btn, onShelf) {
   }
   var glyphs = btn.getElementsByTagName("svg");
   for (var i = 0; i < glyphs.length; i++) {
-    if ((" " + glyphs[i].getAttribute("class") + " ").indexOf(" shelf-check ") > -1) {
-      glyphs[i].style.display = onShelf ? "inline-block" : "none";
-      glyphs[i].style.visibility = onShelf ? "visible" : "hidden";
+    var glyphClass = glyphs[i].getAttribute("class");
+    if (glyphClass.indexOf("shelf-check") > -1 || glyphClass.indexOf("shelf-selection-icon") > -1) {
+      glyphs[i].setAttribute("class", glyphClass.replace("shelf-selection-icon", "shelf-check").replace("shelf-check", onShelf ? "shelf-selection-icon" : "shelf-check"));
+      if (onShelf) {
+        glyphs[i].setAttribute("style", "");
+      } else {
+        glyphs[i].removeAttribute("style");
+      }
     }
   }
-}
-
-function setQuickActionsLayout(btn, showRecent) {
-  var quickActions = btn;
-  while (quickActions && quickActions.tagName !== "TABLE") {
-    quickActions = quickActions.parentNode;
-  }
-  if (!quickActions) {
-    return;
-  }
-  var quickButtons = quickActions.getElementsByTagName("button");
-  var hasMore = false;
-  for (var i = 0; i < quickButtons.length; i++) {
-    if ((" " + quickButtons[i].className + " ").indexOf(" shelf-quick-more ") > -1) {
-      hasMore = true;
-      break;
-    }
-  }
-  quickActions.className = "shelf-quick-actions shelf-quick-actions-" + (showRecent ? (hasMore ? "three" : "two") : (hasMore ? "favorites-more" : "one"));
 }
 
 function syncShelfControls(bookId, shelfId, onShelf, recent) {
@@ -146,17 +129,17 @@ function syncShelfControls(bookId, shelfId, onShelf, recent) {
       setShelfButtonState(buttons[i], onShelf);
     }
   }
+  if (!recent) {
+    return;
+  }
   var recentButton = document.getElementById("book-" + bookId + "-recent");
   var recentForm = document.getElementById("book-" + bookId + "-recent-form");
-  var recentSlot = document.getElementById("book-" + bookId + "-recent-slot");
   if (!recentButton || !recentForm) {
     return;
   }
-  if (!recent) {
-    if (recentSlot) {
-      recentSlot.style.display = "none";
-    }
-    setQuickActionsLayout(recentButton, false);
+  // Keep the target stable when this control removes its own recent shelf.
+  // Otherwise the response would immediately point it at a different shelf.
+  if (!onShelf && recentButton.getAttribute("data-shelf-id") === String(shelfId)) {
     return;
   }
   recentButton.setAttribute("data-shelf-id", recent.id);
@@ -169,12 +152,6 @@ function syncShelfControls(bookId, shelfId, onShelf, recent) {
       break;
     }
   }
-  if (recentSlot) {
-    recentSlot.style.display = "table-cell";
-    recentButton.disabled = false;
-    recentButton.setAttribute("type", "submit");
-  }
-  setQuickActionsLayout(recentButton, true);
 }
 
 function toggleShelfForButton(btn, isViewing) {
