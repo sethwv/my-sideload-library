@@ -105,7 +105,7 @@ button:hover { background: #f7f7f7; }
   padding: 0.3em;
 }
 
-input[type="text"], input[type="password"], input[type="email"], input[type="number"] {
+input[type="text"], input[type="password"], input[type="email"], input[type="number"], .modal-search-placeholder {
   font: inherit;
   padding: 0.65em 0.7em;
   border: 1px solid #ddd;
@@ -271,10 +271,19 @@ label { display: block; margin: 0.6em 0; }
   padding-left: 0.6em;
   white-space: nowrap;
 }
-.toolbar-table .search-input,
+.toolbar-table .search-input, .toolbar-table .modal-search-placeholder,
 .toolbar-table select {
   display: block;
   width: 100%;
+}
+.toolbar-table select { height: 2.825em; }
+.toolbar-table .modal-search-placeholder {
+  display: none;
+  color: #757575;
+  line-height: 1.4em;
+  overflow: hidden;
+  text-align: left;
+  white-space: nowrap;
 }
 .toolbar-table .dir-toggle,
 .toolbar-table .search-btn {
@@ -846,11 +855,12 @@ html.theme-dark button, html.theme-dark .btn {
 html.theme-dark button:hover { background: #303030; }
 html.theme-dark input[type="text"], html.theme-dark input[type="password"],
 html.theme-dark input[type="email"], html.theme-dark input[type="number"],
-html.theme-dark select, html.theme-dark textarea {
+html.theme-dark select, html.theme-dark textarea, html.theme-dark .modal-search-placeholder {
   color: #f2f2f2;
   background: #222;
   border-color: #595959;
 }
+html.theme-dark .modal-search-placeholder { color: #aaa; }
 html.theme-dark input[type="text"]:focus, html.theme-dark input[type="password"]:focus,
 html.theme-dark input[type="email"]:focus, html.theme-dark input[type="number"]:focus {
   outline-color: #c4c4c4;

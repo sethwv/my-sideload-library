@@ -256,10 +256,15 @@ func TestModalDisablesLibrarySearchAndShelfQuickControlsUseEditableShelves(t *te
 	}
 	for _, want := range []string{
 		`function setLibrarySearchDisabled(disabled)`,
-		`document.getElementById("q")`,
 		`document.getElementById("search-submit")`,
+		`document.getElementById("q")`,
 		`setLibrarySearchDisabled(true)`,
 		`setLibrarySearchDisabled(false)`,
+		`librarySearchParent.removeChild(search)`,
+		`document.createElement("div")`,
+		`search.getAttribute("placeholder")`,
+		`submit ? submit.offsetHeight : search.offsetHeight`,
+		`librarySearchParent.insertBefore(librarySearch, librarySearchPlaceholder)`,
 		`recentButton.getAttribute("data-shelf-id") === String(shelfId)`,
 	} {
 		if !strings.Contains(string(modal), want) {

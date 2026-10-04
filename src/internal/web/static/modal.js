@@ -16,15 +16,38 @@
 // appears where the user is looking rather than wherever that DOM node
 // naturally falls.
 var openModalId = null;
+var librarySearch = null;
+var librarySearchParent = null;
+var librarySearchPlaceholder = null;
 
 function setLibrarySearchDisabled(disabled) {
   var search = document.getElementById("q");
   var submit = document.getElementById("search-submit");
-  if (search) {
-    search.disabled = disabled;
-  }
-  if (submit) {
-    submit.disabled = disabled;
+  if (disabled) {
+    if (search && search.blur) {
+      search.blur();
+    }
+    if (search && search.parentNode) {
+      // Kobo can send a tap through the visible modal to an input below it.
+      // Replace only the search input so there is no keyboard target.
+      librarySearch = search;
+      librarySearchParent = search.parentNode;
+      librarySearchPlaceholder = document.createElement("div");
+      librarySearchPlaceholder.className = search.className + " modal-search-placeholder";
+      librarySearchPlaceholder.appendChild(document.createTextNode(search.getAttribute("placeholder") || ""));
+      librarySearchPlaceholder.style.width = search.offsetWidth + "px";
+      librarySearchPlaceholder.style.height = (submit ? submit.offsetHeight : search.offsetHeight) + "px";
+      librarySearchPlaceholder.style.display = "block";
+      librarySearchPlaceholder.setAttribute("aria-hidden", "true");
+      librarySearchParent.insertBefore(librarySearchPlaceholder, search);
+      librarySearchParent.removeChild(search);
+    }
+  } else if (librarySearchParent) {
+    librarySearchParent.insertBefore(librarySearch, librarySearchPlaceholder);
+    librarySearchParent.removeChild(librarySearchPlaceholder);
+    librarySearch = null;
+    librarySearchParent = null;
+    librarySearchPlaceholder = null;
   }
 }
 
