@@ -481,9 +481,8 @@ func (d *DB) DeleteUserShelves(username string) error {
 	})
 }
 
-// RecentShelf prefers the most recently added writable non-system shelf
-// containing bookID and otherwise returns the user's most recently used
-// writable non-system shelf.
+// RecentShelf returns the most recently added writable non-system shelf
+// containing bookID. A book without a shelf target has no Recent action.
 func (d *DB) RecentShelf(username string, bookID int64) (*Shelf, error) {
 	var sh Shelf
 	var isSystem int
@@ -493,13 +492,6 @@ func (d *DB) RecentShelf(username string, bookID int64) (*Shelf, error) {
 		WHERE (s.username = ? OR sm.username IS NOT NULL) AND s.is_system = 0 AND sb.book_id = ?
 		ORDER BY sb.added_at DESC, s.id DESC LIMIT 1`, username, username, bookID,
 	).Scan(&sh.ID, &sh.Username, &sh.Slug, &sh.Name, &isSystem, &sh.Visibility)
-	if err == sql.ErrNoRows {
-		err = d.sql.QueryRow(`SELECT s.id, s.username, s.slug, s.name, s.is_system, s.visibility
-			FROM shelves s LEFT JOIN shelf_members sm ON sm.shelf_id = s.id AND sm.username = ?
-			WHERE (s.username = ? OR sm.username IS NOT NULL) AND s.is_system = 0 AND s.last_used_at > 0
-			ORDER BY s.last_used_at DESC, s.id DESC LIMIT 1`, username, username,
-		).Scan(&sh.ID, &sh.Username, &sh.Slug, &sh.Name, &isSystem, &sh.Visibility)
-	}
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
