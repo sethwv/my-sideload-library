@@ -594,8 +594,9 @@ label { display: block; margin: 0.6em 0; }
 .account-shelf-name { width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-shelf-name a { display: block; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
 .shelf-visibility-icon { width: 1em; height: 1em; margin-right: 0.2em; vertical-align: -0.15em; }
-.shelf-list-visibility-icon { position: absolute; top: 50%; left: 0.75em; margin: -0.5em 0 0; }
-.shelf-picker-list .shelf-label, #shelves-nav-modal .shelf-label { left: 2em; }
+.shelf-picker-list .shelf-list-visibility-icon,
+#shelves-nav-modal .shelf-list-visibility-icon { position: absolute; top: 50%; left: 12px; display: block; width: 16px; height: 16px; margin: -8px 0 0; }
+.shelf-picker-list .shelf-label, #shelves-nav-modal .shelf-label { right: 0.75em; left: 2em; }
 .account-shelves .inline-form { margin-right: 0.35em; }
 .account-shelves input[type="text"] { max-width: 14em; padding: 0.45em; }
 .account-shelf-settings { display: inline-block; padding: 0.35em; }
