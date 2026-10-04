@@ -124,7 +124,10 @@ jobs:
             ? [...(latest ? [releaseEntries.find(({ ref }) => ref === latest)] : []), activeBranch, mainEntry]
             : process.env.REGENERATE_ALL === "true" || presentationChanged
               ? allVersions
-              : process.env.PUBLISH_LATEST === "true" && latest ? [releaseEntries.find(({ ref }) => ref === latest), mainEntry] : [mainEntry];
+              // The root site uses the latest release artifact. Rebuild it whenever
+              // the manifest is recomputed so its version selector cannot lag tags
+              // or documentation preview branches.
+              : latest ? [releaseEntries.find(({ ref }) => ref === latest), mainEntry] : [mainEntry];
           const capture = process.env.REGENERATE_ALL === "true" || process.env.PUBLISH_LATEST === "true" || presentationChanged || captureChanged || Boolean(activeBranch) || !hasPublishedSite;
           const entries = [...new Map(selected.filter(Boolean).map((entry) => [entry.slug, entry])).values()].map((entry) => ({ ...entry, capture }));
           const manifest = [
