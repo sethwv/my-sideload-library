@@ -1,3 +1,5 @@
+{{define "csrf_field"}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}
+
 {{define "topbar"}}
 <header class="topbar">
   <div class="topbar-main">
@@ -60,7 +62,7 @@
       {{if .AdminURL}}
       <li><a class="shelf-toggle" href="{{.AdminURL}}">Admin</a></li>
       {{end}}
-      <li><form method="POST" action="/logout"><button type="submit" class="shelf-toggle">Log out</button></form></li>
+      <li><form method="POST" action="/logout">{{template "csrf_field" .}}<button type="submit" class="shelf-toggle">Log out</button></form></li>
     </ul>
   </div>
 </div>

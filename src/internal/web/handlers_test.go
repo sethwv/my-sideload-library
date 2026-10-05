@@ -31,9 +31,10 @@ func newTestServer(t *testing.T) *Server {
 	t.Cleanup(func() { store.Close() })
 
 	return &Server{
-		Auth:     auth.New("test-session-secret", time.Hour, store),
-		Users:    store,
-		SiteName: "Test Library",
+		Auth:        auth.New("test-session-secret", time.Hour, store),
+		Users:       store,
+		SiteName:    "Test Library",
+		RateLimiter: NewRateLimiter(),
 	}
 }
 

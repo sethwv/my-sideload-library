@@ -8,6 +8,7 @@
 
 <div class="table-wrap">
 <form method="POST" action="/admin/settings/smtp">
+{{template "csrf_field" .}}
 <table>
 <tr><th>Hostname</th><td><input type="text" name="host" value="{{.SMTPHost}}" placeholder="smtp.gmail.com"></td></tr>
 <tr><th>Port</th><td><input type="number" name="port" value="{{if .SMTPPort}}{{.SMTPPort}}{{end}}" placeholder="465"></td></tr>
@@ -29,6 +30,7 @@
 
 <div class="table-wrap" style="margin-top:1em;">
 <form method="POST" action="/admin/settings/smtp/test">
+{{template "csrf_field" .}}
 <table>
 <tr><th>Test recipient</th><td><input type="email" name="test_email" required></td></tr>
 <tr><td colspan="2"><button type="submit" {{if not .SMTPConfigured}}disabled{{end}}>Send test email</button>{{if not .SMTPConfigured}} <span class="muted">Save a hostname and From email first.</span>{{end}}</td></tr>

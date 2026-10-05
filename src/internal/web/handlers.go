@@ -36,6 +36,7 @@ type Server struct {
 	BuildVersion string
 	BuildDate    string
 	Tasks        *tasks.Manager
+	RateLimiter  *RateLimiter
 }
 
 const favoritesSlug = "favourites"
@@ -93,6 +94,10 @@ func (s *Server) baseData(r *http.Request) (data map[string]any, shelves []index
 		}
 	}
 
+	csrfToken := ""
+	if s.Auth != nil {
+		csrfToken = s.Auth.CSRFToken(r)
+	}
 	data = map[string]any{
 		"Username":         username,
 		"IsAdmin":          isAdmin,
@@ -110,6 +115,7 @@ func (s *Server) baseData(r *http.Request) (data map[string]any, shelves []index
 		"BuildVersion":     s.BuildVersion,
 		"BuildDate":        s.BuildDate,
 		"KepubEnabled":     kepubSettings.Enabled,
+		"CSRFToken":        csrfToken,
 	}
 	return data, shelves, nil
 }
@@ -175,8 +181,16 @@ func (s *Server) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 	next := safeNext(r.FormValue("next"))
+	usernameKey := rateLimitIdentity(username)
+	ip := requestIP(r)
+	if !s.RateLimiter.allowed("login-ip", ip, loginAttemptLimit, loginAttemptWindow) || !s.RateLimiter.allowed("login-username", usernameKey, loginAttemptLimit, loginAttemptWindow) {
+		http.Error(w, "too many login attempts", http.StatusTooManyRequests)
+		return
+	}
 
 	if !s.Auth.CheckPassword(username, password) {
+		s.RateLimiter.record("login-ip", ip, loginAttemptWindow)
+		s.RateLimiter.record("login-username", usernameKey, loginAttemptWindow)
 		base, _, _ := s.baseData(r)
 		data := map[string]any{
 			"Title":                  "Log in",
@@ -188,6 +202,8 @@ func (s *Server) LoginSubmit(w http.ResponseWriter, r *http.Request) {
 		render(w, "login.html", data)
 		return
 	}
+	s.RateLimiter.clear("login-ip", ip)
+	s.RateLimiter.clear("login-username", usernameKey)
 
 	s.Auth.IssueSession(w, r, username)
 
@@ -1666,6 +1682,15 @@ func (s *Server) ForgotPasswordSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email := r.FormValue("email")
+	emailKey := rateLimitIdentity(email)
+	ip := requestIP(r)
+	limited := !s.RateLimiter.allowed("reset-ip", ip, resetAttemptLimit, resetAttemptWindow) || !s.RateLimiter.allowed("reset-email", emailKey, resetAttemptLimit, resetAttemptWindow)
+	if limited {
+		s.renderForgotPasswordConfirmation(w, r)
+		return
+	}
+	s.RateLimiter.record("reset-ip", ip, resetAttemptWindow)
+	s.RateLimiter.record("reset-email", emailKey, resetAttemptWindow)
 	token, _, found, err := s.Users.RequestPasswordReset(email)
 	if err != nil {
 		http.Error(w, "failed to process request", http.StatusInternalServerError)
@@ -1688,6 +1713,10 @@ func (s *Server) ForgotPasswordSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.renderForgotPasswordConfirmation(w, r)
+}
+
+func (s *Server) renderForgotPasswordConfirmation(w http.ResponseWriter, r *http.Request) {
 	base, _, err := s.baseData(r)
 	if err != nil {
 		http.Error(w, "failed to load page", http.StatusInternalServerError)

@@ -8,6 +8,7 @@
 
 <h2>Change password</h2>
 <form method="POST" action="/account/password">
+  {{template "csrf_field" .}}
   <label>Current password<br><input type="password" name="current_password" required></label>
   <label>New password<br><input type="password" name="new_password" required></label>
   <button type="submit">Change password</button>
@@ -23,6 +24,7 @@
 <p class="muted">You don't have a bookmark link yet.</p>
 {{end}}
 <form method="POST" action="/account/bookmark/regenerate">
+  {{template "csrf_field" .}}
   <button type="submit">{{if .HasToken}}Regenerate bookmark link{{else}}Create bookmark link{{end}}</button>
 </form>
 {{end}}

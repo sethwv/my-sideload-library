@@ -33,6 +33,7 @@
 
     <div class="modal-section-label">Role</div>
     <form method="POST" action="/admin/users/{{.ID}}/role" class="modal-field-form">
+      {{template "csrf_field" $}}
       <select name="role">
         <option value="admin" {{if eq .Role "admin"}}selected{{end}}>Admin</option>
         <option value="user_manager" {{if eq .Role "user_manager"}}selected{{end}}>User Manager</option>
@@ -45,6 +46,7 @@
     {{if $.IsAdmin}}
     <div class="modal-section-label">Permissions</div>
     <form method="POST" action="/admin/users/{{$user.ID}}/permissions" class="permission-form">
+      {{template "csrf_field" $}}
       <table>
         <tr><th>Permission</th><th>Role</th><th>Access</th></tr>
         {{range .Permissions}}
@@ -67,6 +69,7 @@
 
     <div class="modal-section-label">Email</div>
     <form method="POST" action="/admin/users/{{.ID}}/email" class="modal-field-form">
+      {{template "csrf_field" $}}
       <input type="email" name="email" value="{{.Email}}" placeholder="user@example.com">
       <button type="submit">Save email</button>
     </form>
@@ -74,11 +77,13 @@
     <div class="modal-section-label">Password</div>
     {{if .InvitePending}}
     <form method="POST" action="/admin/users/{{.ID}}/invite/resend" class="modal-field-form">
+      {{template "csrf_field" $}}
       <p class="muted">Invite still pending.</p>
       {{if $.EmailAvailable}}<button type="submit">Resend invite</button>{{else}}<p class="muted">{{$.EmailMessage}}</p>{{end}}
     </form>
     {{else}}
     <form method="POST" action="/admin/users/{{.ID}}/reset-password" class="modal-field-form">
+      {{template "csrf_field" $}}
       <input type="password" name="password" placeholder="new password" required>
       <button type="submit">Reset password</button>
     </form>
@@ -86,10 +91,12 @@
 
     <div class="modal-danger-zone">
       <form method="POST" action="/admin/users/{{.ID}}/enabled">
+        {{template "csrf_field" $}}
         <input type="hidden" name="enabled" value="{{if .Enabled}}false{{else}}true{{end}}">
         <button type="submit">{{if .Enabled}}Disable account{{else}}Enable account{{end}}</button>
       </form>
       <form method="POST" action="/admin/users/{{.ID}}/delete">
+        {{template "csrf_field" $}}
         <button type="submit">Delete user</button>
       </form>
     </div>
@@ -101,6 +108,7 @@
   <div class="modal-box modal-box-wide">
     <h3>Add user</h3>
     <form method="POST" action="/admin/users" class="modal-field-form">
+      {{template "csrf_field" .}}
       <label for="add-username">Username</label>
       <input type="text" id="add-username" name="username" autocapitalize="off" autocorrect="off" required>
       <label for="add-password">Password</label>
@@ -125,6 +133,7 @@
     <h3>Invite by email</h3>
     <p class="muted">Requires <a href="/admin/smtp">SMTP</a> and a Public URL.</p>
     <form method="POST" action="/admin/users/invite" class="modal-field-form">
+      {{template "csrf_field" .}}
       <label for="invite-username">Username</label>
       <input type="text" id="invite-username" name="username" autocapitalize="off" autocorrect="off" required>
       <label for="invite-email">Email</label>

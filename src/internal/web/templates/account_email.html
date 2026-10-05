@@ -9,6 +9,7 @@
 <h2>Email</h2>
 <!-- <p class="muted">Used for password-reset and weekly digest emails. Leave blank to remove it.</p> -->
 <form method="POST" action="/account/email">
+  {{template "csrf_field" .}}
   <label>Email address<br><input type="email" name="email" value="{{.Email}}" placeholder="you@example.com"></label>
   <button type="submit">Save email</button>
 </form>
@@ -16,6 +17,7 @@
 <h2>New-book digest</h2>
 <p class="muted">Get a weekly email listing books added to the library.</p>
 <form method="POST" action="/account/digest">
+  {{template "csrf_field" .}}
   <label><input type="checkbox" name="subscribed" style="width:auto;display:inline" {{if .DigestSubscribed}}checked{{end}}> Email me weekly about new books</label>
   <button type="submit">Save</button>
 </form>

@@ -5,6 +5,7 @@
 {{if .Status}}<p class="muted">{{.Status}}</p>{{end}}
 
 <form method="POST" action="/account/shelves" class="account-shelf-create">
+  {{template "csrf_field" .}}
   <table class="toolbar-table"><tr>
     <td><input id="shelf-name" class="search-input" type="text" name="name" maxlength="100" placeholder="New shelf" aria-label="New shelf" required></td>
     <td><button type="submit" class="search-btn">Create shelf</button></td>

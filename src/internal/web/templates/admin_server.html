@@ -30,6 +30,7 @@
 
 <h2>Library</h2>
 <form method="POST" action="/admin/server/clear" style="margin-top:1em;">
+  {{template "csrf_field" .}}
   <button type="submit">Clear library and queue scan</button>
 </form>
 

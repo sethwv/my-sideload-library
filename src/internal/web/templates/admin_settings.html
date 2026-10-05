@@ -8,6 +8,7 @@
 
 <div class="table-wrap">
 <form method="POST" action="/admin/settings/general">
+{{template "csrf_field" .}}
 <table>
 <tr><th>Site name</th><td><input type="text" name="site_name" value="{{.SiteName}}" required></td></tr>
 <tr><th>Public URL</th><td><input type="text" name="public_url" value="{{.PublicURL}}" placeholder="https://library.example.com"></td></tr>
@@ -25,6 +26,7 @@
 <p class="muted">Convert EPUB downloads to Kobo's KEPUB format.</p>
 <div class="table-wrap">
 <form method="POST" action="/admin/settings/kepub">
+{{template "csrf_field" .}}
 <table>
 <tr><th>Enable KEPUB downloads</th><td><label><input type="checkbox" name="enabled"{{if .KepubEnabled}} checked{{end}}> Show the KEPUB download button</label></td></tr>
 <tr><th>Write Calibre series metadata</th><td><label><input type="checkbox" name="write_calibre_metadata"{{if .KepubWriteCalibreMetadata}} checked{{end}}> Fill missing series and series-number fields from library metadata for NickelSeries</label></td></tr>

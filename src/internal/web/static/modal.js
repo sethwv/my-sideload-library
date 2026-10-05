@@ -185,6 +185,7 @@ function toggleShelf(bookId, shelfId, isViewing) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "/books/" + bookId + "/shelves/" + shelfId, true);
   xhr.setRequestHeader("Accept", "application/json");
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
   xhr.onreadystatechange = function () {
     if (xhr.readyState !== 4) {
       return;
@@ -214,8 +215,36 @@ function toggleShelf(bookId, shelfId, isViewing) {
       syncShelfControls(bookId, shelfId, state.onShelf, state.recent);
     }
   };
-  xhr.send();
+  xhr.send("csrf_token=" + encodeURIComponent(csrfToken()));
   return false;
+}
+
+function csrfToken() {
+  var metas = document.getElementsByTagName("meta");
+  for (var i = 0; i < metas.length; i++) {
+    if (metas[i].getAttribute("name") === "csrf-token") {
+      return metas[i].getAttribute("content") || "";
+    }
+  }
+  return "";
+}
+
+function addCSRFFields() {
+  var token = csrfToken();
+  if (!token) {
+    return;
+  }
+  var forms = document.getElementsByTagName("form");
+  for (var i = 0; i < forms.length; i++) {
+    if ((forms[i].method || "").toLowerCase() !== "post" || forms[i].elements.csrf_token) {
+      continue;
+    }
+    var input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "csrf_token";
+    input.value = token;
+    forms[i].insertBefore(input, forms[i].firstChild);
+  }
 }
 
 // Direct-link support: a book card's cover-link href always includes
@@ -263,6 +292,7 @@ function abbreviateTruncatedCardAuthors() {
 }
 
 window.onload = function () {
+  addCSRFFields();
   abbreviateTruncatedCardAuthors();
   var bookId = getQueryParam("book");
   if (bookId) {

@@ -4,11 +4,13 @@
 <h1>Shelf settings: {{.Shelf.Name}}</h1>
 <p><a href="/shelves/{{.Shelf.ID}}">Back to shelf</a></p>
 <form method="POST" action="/shelves/{{.Shelf.ID}}/settings/rename" class="modal-field-form">
+  {{template "csrf_field" .}}
   <label for="shelf-name">Name</label>
   <input id="shelf-name" type="text" name="name" value="{{.Shelf.Name}}" maxlength="100" required>
   <button type="submit">Rename shelf</button>
 </form>
 <form method="POST" action="/shelves/{{.Shelf.ID}}/settings/visibility" class="modal-field-form">
+  {{template "csrf_field" .}}
   <label for="visibility">Visibility</label>
   <select id="visibility" name="visibility">
     <option value="private" {{if eq .Shelf.Visibility "private"}}selected{{end}}>Private</option>
@@ -20,18 +22,20 @@
 <h2>Members</h2>
 <p class="muted">Members can add and remove books from this shelf.{{if eq .Shelf.Visibility "private"}} Change visibility to Shared or Public to manage members.{{end}}</p>
 <form method="POST" action="/shelves/{{.Shelf.ID}}/settings/members" class="modal-field-form">
+  {{template "csrf_field" .}}
   <label for="member-username">Username</label>
   <input id="member-username" type="text" name="username" required{{if eq .Shelf.Visibility "private"}} disabled{{end}}>
   <button type="submit"{{if eq .Shelf.Visibility "private"}} disabled{{end}}>Add member</button>
 </form>
 <ul class="shelf-index">
 {{range .Members}}
-  <li>{{.Username}} <form method="POST" action="/shelves/{{$.Shelf.ID}}/settings/members/{{.Username}}/delete" class="inline-form"><button type="submit"{{if eq $.Shelf.Visibility "private"}} disabled{{end}}>Remove</button></form></li>
+  <li>{{.Username}} <form method="POST" action="/shelves/{{$.Shelf.ID}}/settings/members/{{.Username}}/delete" class="inline-form">{{template "csrf_field" $}}<button type="submit"{{if eq $.Shelf.Visibility "private"}} disabled{{end}}>Remove</button></form></li>
 {{else}}
   <li class="muted">No members yet.</li>
 {{end}}
 </ul>
 <form method="POST" action="/shelves/{{.Shelf.ID}}/settings/delete" class="inline-form">
+  {{template "csrf_field" .}}
   <button type="submit">Delete shelf</button>
 </form>
 {{end}}
