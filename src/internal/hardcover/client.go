@@ -21,6 +21,8 @@ var endpoint = "https://api.hardcover.app/v1/graphql"
 
 const maxResponseBytes = 10 << 20
 
+const userAgent = "my-sideload-library"
+
 // Client is safe for concurrent use — every call goes through a shared rate
 // limiter (Hardcover's own limit is 60 requests/min) regardless of which
 // goroutine (the background enrichment queue, or a manual per-book check)
@@ -41,10 +43,11 @@ type Client struct {
 // under Hardcover's 60 req/min limit.
 const minInterval = 1100 * time.Millisecond
 
-// New creates a Client using the given API bearer token (from
-// https://hardcover.app/settings, per Hardcover's own docs) and enabled
-// state, as loaded from users.IntegrationSettings at startup. Use SetConfig
-// to update either at runtime.
+// New creates a Client using the given Hardcover personal API key (from
+// https://hardcover.app/account/api). The key needs the read:catalog scope;
+// it is sent as a bearer credential. enabled is loaded from
+// users.IntegrationSettings at startup. Use SetConfig to update either at
+// runtime.
 func New(enabled bool, token string) *Client {
 	return NewWithTransport(enabled, token, nil)
 }
@@ -104,6 +107,7 @@ func (c *Client) do(ctx context.Context, query string, variables any, out any) e
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.currentToken())
+	req.Header.Set("User-Agent", userAgent)
 
 	resp, err := c.http.Do(req)
 	if err != nil {

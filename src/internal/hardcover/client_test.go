@@ -19,11 +19,12 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func TestNewWithTransport_UsesInjectedTransport(t *testing.T) {
-	var gotMethod, gotAuth, gotContentType string
-	c := NewWithTransport(true, "test-token", roundTripFunc(func(r *http.Request) (*http.Response, error) {
+	var gotMethod, gotAuth, gotContentType, gotUserAgent string
+	c := NewWithTransport(true, "hc_pat_test", roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		gotMethod = r.Method
 		gotAuth = r.Header.Get("Authorization")
 		gotContentType = r.Header.Get("Content-Type")
+		gotUserAgent = r.Header.Get("User-Agent")
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(strings.NewReader(`{"data":{"search":{"ids":[],"results":{"hits":[]}}}}`)),
@@ -34,8 +35,8 @@ func TestNewWithTransport_UsesInjectedTransport(t *testing.T) {
 	if _, err := c.Search(context.Background(), "Mistborn", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	if gotMethod != http.MethodPost || gotAuth != "Bearer test-token" || gotContentType != "application/json" {
-		t.Errorf("request = method %q, authorization %q, content type %q", gotMethod, gotAuth, gotContentType)
+	if gotMethod != http.MethodPost || gotAuth != "Bearer hc_pat_test" || gotContentType != "application/json" || gotUserAgent != userAgent {
+		t.Errorf("request = method %q, authorization %q, content type %q, user agent %q", gotMethod, gotAuth, gotContentType, gotUserAgent)
 	}
 	if c.http.Timeout != 30*time.Second {
 		t.Errorf("Timeout = %v, want 30s", c.http.Timeout)
@@ -65,17 +66,18 @@ func overrideEndpointForTest(t *testing.T, url string) {
 	t.Cleanup(func() { endpoint = original })
 }
 
-func TestSearch_SendsBearerTokenAndVariables(t *testing.T) {
-	var gotAuth string
+func TestSearch_SendsPersonalAPIKeyAndVariables(t *testing.T) {
+	var gotAuth, gotUserAgent string
 	var gotBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
+		gotUserAgent = r.Header.Get("User-Agent")
 		json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Write([]byte(`{"data":{"search":{"ids":[1],"results":{"hits":[{"document":{"id":"1","title":"Mistborn","author_names":["Brandon Sanderson"],"release_date":"2006-01-01","featured_series":{"position":1,"series":{"name":"The Mistborn Saga"}}}}]}}}}`))
 	}))
 	defer srv.Close()
 
-	c := New(true, "test-token")
+	c := New(true, "hc_pat_test")
 	c.http = srv.Client()
 	overrideEndpointForTest(t, srv.URL)
 
@@ -83,8 +85,11 @@ func TestSearch_SendsBearerTokenAndVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotAuth != "Bearer test-token" {
-		t.Errorf("Authorization = %q, want %q", gotAuth, "Bearer test-token")
+	if gotAuth != "Bearer hc_pat_test" {
+		t.Errorf("Authorization = %q, want %q", gotAuth, "Bearer hc_pat_test")
+	}
+	if gotUserAgent != userAgent {
+		t.Errorf("User-Agent = %q, want %q", gotUserAgent, userAgent)
 	}
 	variables, _ := gotBody["variables"].(map[string]any)
 	if variables["q"] != "Mistborn Brandon Sanderson" {

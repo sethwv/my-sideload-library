@@ -56,12 +56,12 @@
   {{else if .HardcoverConfigured}}
   <p class="muted">Disabled</p>
   {{else}}
-  <p class="muted"><a href="https://hardcover.app/settings" target="_blank" rel="noopener">Get an API token</a></p>
+   <p class="muted"><a href="https://hardcover.app/account/api" target="_blank" rel="noopener">Create a Hardcover API key</a> with the <code>read:catalog</code> scope.</p>
   {{end}}
 
   <form method="POST" action="/admin/integrations/hardcover" class="integration-form">
     <label class="integration-checkbox"><input type="checkbox" name="hardcover_enabled" {{if .HardcoverEnabled}}checked{{end}}> Enable Hardcover</label>
-    <label>API token<input type="password" name="hardcover_token" placeholder="{{if .HardcoverConfigured}}(unchanged){{else}}paste your Hardcover API token{{end}}"></label>
+    <label>API key<input type="password" name="hardcover_token" placeholder="{{if .HardcoverConfigured}}(unchanged){{else}}paste your Hardcover API key{{end}}"></label>
     <label class="integration-checkbox"><input type="checkbox" name="hide_no_hardcover_match" {{if .HideNoHardcoverMatch}}checked{{end}}> Hide unmatched books</label>
     <label class="integration-checkbox"><input type="checkbox" name="hardcover_overwrite_cover" {{if .HardcoverOverwriteCover}}checked{{end}}> Use Hardcover covers</label>
     <button type="submit">Save</button>

@@ -238,13 +238,13 @@
 
 - id: enrichment-hardcover
   title: Hardcover enrichment
-  description: The Hardcover token and provider configuration controls.
+  description: The Hardcover API key and provider configuration controls.
   actions:
     - login
     - goto: /admin/integrations?provider=hardcover
   annotations:
     - selector: 'input[name="hardcover_token"]'
-      label: Paste the Hardcover API token
+      label: Paste the Hardcover API key
       placement: bottom
 
 - id: enrichment-chaptarr

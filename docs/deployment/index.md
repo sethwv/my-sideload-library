@@ -28,12 +28,8 @@ Serve the application through an HTTPS reverse proxy. The application listens on
 | `DATA_DIR` | `/data` | Writable application data |
 | `SESSION_SECRET` | Empty | Runtime session-cookie signing-key override |
 | `PORT` | `8080` | HTTP listen port |
-| `SITE_NAME` | `sideload-library` | Display name |
-| `COVER_WIDTH` | `300` | Cover thumbnail width in pixels |
-| `PAGE_SIZE` | `48` | Books per page |
-| `SESSION_TTL` | `720h` | Login-session lifetime |
-| `HARDCOVER_API_TOKEN` | Empty | One-time Hardcover integration bootstrap token |
-| `PUBLIC_URL` | Empty | Trusted URL for emailed links |
+
+Configure the site name, public URL, cover width, page size, session lifetime, and enhancement providers from the administrator interface after setup. Those settings are persisted in `DATA_DIR/users.db`.
 
 For the full development environment and contribution terms, see [CONTRIBUTING.md](https://github.com/sethwv/my-sideload-library/blob/main/CONTRIBUTING.md).
 

@@ -14,4 +14,4 @@ nav_order: 3
 
 KEPUB is converted when requested, so large books can take longer to download. The button appears only when an administrator enables KEPUB conversion. If your reading application accepts EPUB, use the original EPUB.
 
-Administrators can optionally add missing Calibre series fields to generated KEPUB files. This does not change the source EPUB or overwrite fields that already exist. Kobo does not normally import those fields from sideloaded books, so test your NickelSeries or `seriesmeta` workflow with one book before relying on it.
+Administrators can optionally add missing Calibre series fields to generated KEPUB files for [NickelSeries](https://github.com/pgaskin/NickelSeries). This does not change the source EPUB or overwrite fields that already exist.

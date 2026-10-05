@@ -90,6 +90,7 @@ func TestRenderAdminIntegrationsTabsAndForms(t *testing.T) {
 		wantPanel      string
 		wantFormAction string
 		wantInput      string
+		wantText       string
 	}{
 		{
 			name:           "hardcover",
@@ -98,6 +99,7 @@ func TestRenderAdminIntegrationsTabsAndForms(t *testing.T) {
 			wantPanel:      `class="integration-card" aria-labelledby="hardcover-heading"`,
 			wantFormAction: `action="/admin/integrations/hardcover"`,
 			wantInput:      `name="hardcover_token"`,
+			wantText:       `https://hardcover.app/account/api`,
 		},
 		{
 			name:           "chaptarr",
@@ -126,6 +128,9 @@ func TestRenderAdminIntegrationsTabsAndForms(t *testing.T) {
 				if !strings.Contains(body, want) {
 					t.Errorf("response missing %q: %s", want, body)
 				}
+			}
+			if tt.wantText != "" && !strings.Contains(body, tt.wantText) {
+				t.Errorf("response missing %q: %s", tt.wantText, body)
 			}
 			if strings.Contains(body, "Back to library") {
 				t.Errorf("response retains removed navigation: %s", body)
