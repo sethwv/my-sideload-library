@@ -57,8 +57,8 @@
       {{else}}
       <li><a class="shelf-toggle" href="/account">Account</a></li>
       {{end}}
-      {{if or .CanManageUsers .CanManageServer .CanManageShelves}}
-      <li><a class="shelf-toggle" href="{{if .CanManageServer}}/admin/server{{else if .CanManageUsers}}/admin/users{{else}}/admin/shelves{{end}}">Admin</a></li>
+      {{if .AdminURL}}
+      <li><a class="shelf-toggle" href="{{.AdminURL}}">Admin</a></li>
       {{end}}
       <li><form method="POST" action="/logout"><button type="submit" class="shelf-toggle">Log out</button></form></li>
     </ul>

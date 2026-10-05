@@ -53,6 +53,7 @@ func (s *Server) baseData(r *http.Request) (data map[string]any, shelves []index
 	canBookmark := false
 	canOwnShelves := false
 	canManageShelves := false
+	adminURL := ""
 	var visibleShelves []index.ShelfAccess
 	if username != "" {
 		// A restricted (bookmark-token) session shouldn't be offered admin
@@ -66,6 +67,14 @@ func (s *Server) baseData(r *http.Request) (data map[string]any, shelves []index
 		canBookmark = s.Users.CanUseBookmark(username)
 		canOwnShelves = s.Users.Can(username, users.PermissionOwnShelves) && full
 		canManageShelves = s.Users.Can(username, users.PermissionManageShelves) && full
+		switch {
+		case canManageServer:
+			adminURL = "/admin/server"
+		case canManageUsers:
+			adminURL = "/admin/users"
+		case canManageShelves:
+			adminURL = "/admin/shelves"
+		}
 		if _, err = s.DB.EnsureSystemShelf(username, favoritesSlug, favoritesName); err != nil {
 			return nil, nil, err
 		}
@@ -92,6 +101,7 @@ func (s *Server) baseData(r *http.Request) (data map[string]any, shelves []index
 		"CanBookmark":      canBookmark,
 		"CanOwnShelves":    canOwnShelves,
 		"CanManageShelves": canManageShelves,
+		"AdminURL":         adminURL,
 		"Restricted":       auth.IsRestricted(r.Context()),
 		"Shelves":          shelves,
 		"VisibleShelves":   visibleShelves,

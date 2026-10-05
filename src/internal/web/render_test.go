@@ -1,6 +1,8 @@
 package web
 
 import (
+	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/tasks"
+	"github.com/sethwv/my-sideload-library/internal/users"
 )
 
 func TestRenderIncludesBuildVersion(t *testing.T) {
@@ -356,6 +359,81 @@ func TestBaseDataIncludesBuildVersion(t *testing.T) {
 	}
 	if got := data["BuildDate"]; got != "2026-08-15" {
 		t.Errorf("BuildDate = %v, want 2026-08-15", got)
+	}
+}
+
+func TestBaseDataAdminURLUsesEffectivePermissions(t *testing.T) {
+	server := newAccountTestServer(t)
+
+	for _, test := range []struct {
+		name       string
+		role       string
+		overrides  map[users.Permission]bool
+		restricted bool
+		want       string
+	}{
+		{name: "no admin permission", role: users.RoleMember},
+		{name: "manage shelves", role: users.RoleMember, overrides: map[users.Permission]bool{users.PermissionManageShelves: true}, want: "/admin/shelves"},
+		{name: "manage users", role: users.RoleUserManager, want: "/admin/users"},
+		{name: "manage server", role: users.RoleServerManager, want: "/admin/server"},
+		{name: "users before shelves", role: users.RoleMember, overrides: map[users.Permission]bool{users.PermissionManageUsers: true, users.PermissionManageShelves: true}, want: "/admin/users"},
+		{name: "server before users and shelves", role: users.RoleMember, overrides: map[users.Permission]bool{users.PermissionManageServer: true, users.PermissionManageUsers: true, users.PermissionManageShelves: true}, want: "/admin/server"},
+		{name: "restricted session", role: users.RoleAdmin, restricted: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			username := strings.ReplaceAll(test.name, " ", "-")
+			if err := server.Users.Create(username, "password", test.role, true, ""); err != nil {
+				t.Fatal(err)
+			}
+			account, err := server.Users.UserByUsername(username)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for permission, granted := range test.overrides {
+				if err := server.Users.SetPermissionOverride(account.ID, permission, &granted); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			request := httptest.NewRequest("GET", "/", nil)
+			issue := httptest.NewRecorder()
+			if test.restricted {
+				server.Auth.IssueRestrictedSession(issue, request, username)
+			} else {
+				server.Auth.IssueSession(issue, request, username)
+			}
+			request.AddCookie(issue.Result().Cookies()[0])
+
+			var data map[string]any
+			server.Auth.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var err error
+				data, _, err = server.baseData(r)
+				if err != nil {
+					t.Fatal(err)
+				}
+			})).ServeHTTP(httptest.NewRecorder(), request)
+
+			if got := data["AdminURL"]; got != test.want {
+				t.Errorf("AdminURL = %q, want %q", got, test.want)
+			}
+
+			template, err := pageTemplate("library.html")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rendered bytes.Buffer
+			if err := template.ExecuteTemplate(&rendered, "topbar", data); err != nil {
+				t.Fatal(err)
+			}
+			body := rendered.String()
+			if test.want == "" {
+				if strings.Contains(body, ">Admin</a>") {
+					t.Errorf("rendered an Admin link without a destination: %s", body)
+				}
+			} else if !strings.Contains(body, `href="`+test.want+`">Admin</a>`) {
+				t.Errorf("rendered Admin link does not use %q: %s", test.want, body)
+			}
+		})
 	}
 }
 
