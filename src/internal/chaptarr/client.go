@@ -32,6 +32,7 @@ import (
 const DefaultCacheTTL = 12 * time.Hour
 
 const maxResponseBytes = 10 << 20
+const maxErrorResponseBytes = 4 << 10
 
 // Client is safe for concurrent use. baseURL/apiKey/enabled are mutable
 // (see SetConfig) so the admin Integrations page can turn Chaptarr on/off
@@ -274,6 +275,13 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		message, err := readErrorResponse(resp.Body)
+		if err != nil {
+			return fmt.Errorf("chaptarr: read error response for %s: %w", path, err)
+		}
+		if message != "" {
+			return fmt.Errorf("chaptarr: unexpected status %d for %s: %s", resp.StatusCode, path, message)
+		}
 		return fmt.Errorf("chaptarr: unexpected status %d for %s", resp.StatusCode, path)
 	}
 	data, err := readResponse(resp.Body)
@@ -295,6 +303,17 @@ func readResponse(r io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("response exceeds %d bytes", maxResponseBytes)
 	}
 	return data, nil
+}
+
+func readErrorResponse(r io.Reader) (string, error) {
+	data, err := io.ReadAll(io.LimitReader(r, maxErrorResponseBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) > maxErrorResponseBytes {
+		data = data[:maxErrorResponseBytes]
+	}
+	return strings.Join(strings.Fields(string(data)), " "), nil
 }
 
 // ListBooks fetches every book Chaptarr has an on-disk file for, with

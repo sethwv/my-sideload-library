@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -120,5 +121,23 @@ func TestManagerRecordsMillisecondDuration(t *testing.T) {
 	}
 	if len(history) != 1 || history[0].Duration < time.Millisecond {
 		t.Fatalf("history = %#v, want a millisecond duration", history)
+	}
+}
+
+func TestManagerRecordsFailedJobError(t *testing.T) {
+	manager := newTestManager(t)
+	manager.Register(Task{Key: "scan", Name: "Scan", Kind: KindJob, Runnable: true}, func(context.Context) error {
+		return fmt.Errorf("library is unavailable")
+	})
+
+	if err := manager.Run(context.Background(), "scan"); err == nil {
+		t.Fatal("Run() succeeded, want failure")
+	}
+	history, err := manager.History(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 || history[0].Status != StatusFailed || history[0].Error != "library is unavailable" {
+		t.Fatalf("history = %#v, want persisted failed run", history)
 	}
 }

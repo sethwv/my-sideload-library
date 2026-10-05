@@ -71,6 +71,20 @@ func TestListBooks_PreservesStatusError(t *testing.T) {
 	}
 }
 
+func TestListBooks_IncludesErrorResponseBody(t *testing.T) {
+	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusUnauthorized,
+			Body:       io.NopCloser(strings.NewReader("  invalid\nAPI key  ")),
+			Header:     make(http.Header),
+		}, nil
+	}))
+
+	if _, err := c.ListBooks(context.Background()); err == nil || !strings.Contains(err.Error(), "unexpected status 401 for /api/v1/author: invalid API key") {
+		t.Errorf("ListBooks error = %v, want endpoint, status, and response body", err)
+	}
+}
+
 type memoryCacheStore struct {
 	books map[string][]Book
 	at    map[string]time.Time

@@ -441,6 +441,7 @@ jobs:
            await prunePublishedSites('publish', process.env.RETAINED.split(',').filter(Boolean), process.env.BRANCHES.split(',').filter(Boolean));
           NODE
           for artifact in incoming/*; do
+            test -d "$artifact" || continue
             slug="${artifact##*/}"
             if test "$slug" = root; then continue; fi
              site_path=$(cat "$artifact/site-path.txt")

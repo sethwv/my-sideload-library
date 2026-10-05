@@ -198,6 +198,26 @@ func TestAdminTabsIncludeTasks(t *testing.T) {
 	}
 }
 
+func TestAdminTasksRendersEscapedFailedRunError(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	render(recorder, "admin_tasks.html", map[string]any{
+		"Title": "Tasks", "SiteName": "Test Library", "CanManageServer": true,
+		"History": []tasks.Run{{TaskName: "Refresh Chaptarr catalog", Status: tasks.StatusFailed, Error: "unexpected <script>alert(1)</script>"}},
+	})
+	if recorder.Code != 200 {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+	body := recorder.Body.String()
+	for _, want := range []string{"task-error", "failed", "unexpected &lt;script&gt;alert(1)&lt;/script&gt;"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("response missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "unexpected <script>") {
+		t.Errorf("response renders task error as HTML: %s", body)
+	}
+}
+
 func TestAdminTabsUseRequestedOrderAndLabels(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	render(recorder, "admin_tasks.html", map[string]any{

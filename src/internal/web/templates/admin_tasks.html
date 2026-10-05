@@ -9,6 +9,6 @@
 <h2>History</h2>
 <div class="table-wrap"><table>
 <tr><th>Task</th><th>Status</th><th>Queued</th><th>Started</th><th>Duration</th></tr>
-{{range .History}}<tr><td>{{.TaskName}}</td><td>{{.Status}}</td><td>{{if hasTime .QueuedAt}}<time datetime="{{.QueuedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.QueuedAt.Format "2006-01-02 15:04:05 MST"}}">{{relativeTime .QueuedAt}}</time>{{end}}</td><td>{{if hasTime .StartedAt}}<time datetime="{{.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartedAt.Format "2006-01-02 15:04:05 MST"}}">{{relativeTime .StartedAt}}</time>{{end}}</td><td>{{if hasTime .FinishedAt}}{{.Duration}}{{end}}</td></tr>{{else}}<tr><td colspan="5" class="muted">No task runs yet.</td></tr>{{end}}
+{{range .History}}<tr><td>{{.TaskName}}</td><td>{{if eq .Status "failed"}}<details class="task-error"><summary>failed</summary><pre>{{if .Error}}{{.Error}}{{else}}No error details were recorded for this run.{{end}}</pre></details>{{else}}{{.Status}}{{end}}</td><td>{{if hasTime .QueuedAt}}<time datetime="{{.QueuedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.QueuedAt.Format "2006-01-02 15:04:05 MST"}}">{{relativeTime .QueuedAt}}</time>{{end}}</td><td>{{if hasTime .StartedAt}}<time datetime="{{.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartedAt.Format "2006-01-02 15:04:05 MST"}}">{{relativeTime .StartedAt}}</time>{{end}}</td><td>{{if hasTime .FinishedAt}}{{.Duration}}{{end}}</td></tr>{{else}}<tr><td colspan="5" class="muted">No task runs yet.</td></tr>{{end}}
 </table></div>
 {{end}}

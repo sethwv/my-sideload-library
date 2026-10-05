@@ -768,6 +768,8 @@ th { background: #f7f7f7; }
 .task-run:disabled { cursor: default; }
 .task-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 1em; }
 .task-page-heading h1 { margin: 0.4em 0; }
+.task-error summary { cursor: pointer; }
+.task-error pre { max-width: 32em; margin: 0.5em 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 0.9em; }
 
 /* Edit Metadata page: cover-left/actions-right via the same table primitive
    as .modal-layout above, a card-per-candidate match picker (reusing

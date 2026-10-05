@@ -309,6 +309,7 @@ func (m *Manager) Run(ctx context.Context, key string) error {
 	status, message := StatusSucceeded, ""
 	if err != nil {
 		status, message = StatusFailed, err.Error()
+		log.Printf("task %s (run %d) failed: %v", key, run.ID, err)
 	}
 	if finishErr := m.store.finish(run.ID, status, message); finishErr != nil {
 		if err != nil {
@@ -379,6 +380,7 @@ func (m *Manager) work(ctx context.Context) {
 			status, message := StatusSucceeded, ""
 			if err != nil {
 				status, message = StatusFailed, err.Error()
+				log.Printf("task %s (run %d) failed: %v", run.TaskKey, run.ID, err)
 			}
 			if finishErr := m.store.finish(run.ID, status, message); finishErr != nil {
 				log.Printf("task %s: record completion: %v", run.TaskKey, finishErr)
