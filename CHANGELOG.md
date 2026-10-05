@@ -2,8 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
@@ -18,10 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Consolidated password, digest, bookmark-link, and available email settings under the account pages.
 - Made password reset available only when an administrator enables it after configuring SMTP and a public URL.
+- Updated book cards with cover title overlays and abbreviated author names when space is limited.
 
 ### Security
 
 - Revoked active sessions when an administrator disables an account and blocked disabled accounts from authentication flows.
+- Added CSRF protection for authenticated state-changing requests.
+- Rate-limited failed login attempts and password-reset requests.
+- Hardened redirect handling and remote cover fetching.
+
+### Fixed
+
+- Restored Kobo quick shelf controls and shelf-selection icons, and prevented background search fields from receiving focus while a modal is open.
+- Allowed session cookies over HTTP for trusted LAN deployments.
+- Displayed background task failures in the administrator task list.
+- Supported scoped Hardcover API keys and paginated large Chaptarr catalog refreshes.
+- Routed the administrator menu to the first page available to the signed-in user's permissions.
 
 ## [v0.0.3] - 2026-10-02
 
@@ -53,7 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened redirects, sessions, SMTP delivery, and remote cover fetching.
 - Replaced a vulnerable image-processing dependency.
 
-## [v0.0.1] - 2026-09-15 (Initial Release, Not Exhaustive)
+## [v0.0.1] - 2026-09-15
+*(Initial Release, Not Exhaustive)*
 
 ### Added
 
