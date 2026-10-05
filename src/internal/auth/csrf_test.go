@@ -59,3 +59,17 @@ func TestRequireCSRFRejectsMissingAndForeignTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestRequireCSRFAcceptsHeaderToken(t *testing.T) {
+	a := testAuthenticator(t)
+	req := csrfRequest(t, a, "reader", url.Values{})
+	req.Header.Set("X-CSRF-Token", a.CSRFToken(req))
+
+	w := httptest.NewRecorder()
+	a.RequireCSRF(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
+	}
+}

@@ -24,9 +24,10 @@ func (a *Authenticator) CSRFToken(r *http.Request) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// RequireCSRF rejects requests whose form token is not bound to the current
-// authenticated session. It is intended to run inside an authentication
-// middleware so unauthenticated requests retain their existing behavior.
+// RequireCSRF rejects requests whose form token or X-CSRF-Token header is not
+// bound to the current authenticated session. It is intended to run inside an
+// authentication middleware so unauthenticated requests retain their existing
+// behavior.
 func (a *Authenticator) RequireCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
@@ -35,6 +36,9 @@ func (a *Authenticator) RequireCSRF(next http.Handler) http.Handler {
 		}
 		expected := a.CSRFToken(r)
 		provided := r.FormValue(csrfFormField)
+		if provided == "" {
+			provided = r.Header.Get("X-CSRF-Token")
+		}
 		if expected == "" || !hmac.Equal([]byte(expected), []byte(provided)) {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return

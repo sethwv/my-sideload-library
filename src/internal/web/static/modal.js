@@ -185,7 +185,7 @@ function toggleShelf(bookId, shelfId, isViewing) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", "/books/" + bookId + "/shelves/" + shelfId, true);
   xhr.setRequestHeader("Accept", "application/json");
-  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  xhr.setRequestHeader("X-CSRF-Token", csrfToken());
   xhr.onreadystatechange = function () {
     if (xhr.readyState !== 4) {
       return;
@@ -215,7 +215,7 @@ function toggleShelf(bookId, shelfId, isViewing) {
       syncShelfControls(bookId, shelfId, state.onShelf, state.recent);
     }
   };
-  xhr.send("csrf_token=" + encodeURIComponent(csrfToken()));
+  xhr.send();
   return false;
 }
 
