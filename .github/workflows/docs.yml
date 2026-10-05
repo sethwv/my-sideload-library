@@ -420,7 +420,7 @@ jobs:
           || true
       - uses: actions/download-artifact@v5
         with:
-          pattern: docs-site-*
+          pattern: docs-*
           path: incoming
           merge-multiple: true
       - uses: actions/download-artifact@v5
