@@ -57,6 +57,25 @@ func TestListBooks_RejectsOversizedResponse(t *testing.T) {
 	}
 }
 
+func TestListBooks_AcceptsCatalogLargerThanDefaultLimit(t *testing.T) {
+	padding := strings.Repeat("x", maxResponseBytes)
+	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := "[]"
+		if r.URL.Path == "/api/v1/book" {
+			body = `[{"id":1,"hasFiles":false,"padding":"` + padding + `"}]`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	}))
+
+	if _, err := c.ListBooks(context.Background()); err != nil {
+		t.Fatalf("ListBooks() error = %v, want catalog larger than %d bytes to succeed", err, maxResponseBytes)
+	}
+}
+
 func TestListBooks_PreservesStatusError(t *testing.T) {
 	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{

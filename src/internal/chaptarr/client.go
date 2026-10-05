@@ -32,6 +32,7 @@ import (
 const DefaultCacheTTL = 12 * time.Hour
 
 const maxResponseBytes = 10 << 20
+const maxCatalogResponseBytes = 64 << 20
 const maxErrorResponseBytes = 4 << 10
 
 // Client is safe for concurrent use. baseURL/apiKey/enabled are mutable
@@ -284,7 +285,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		}
 		return fmt.Errorf("chaptarr: unexpected status %d for %s", resp.StatusCode, path)
 	}
-	data, err := readResponse(resp.Body)
+	data, err := readResponse(resp.Body, responseLimit(path))
 	if err != nil {
 		return fmt.Errorf("chaptarr: decode response for %s: %w", path, err)
 	}
@@ -294,13 +295,20 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	return nil
 }
 
-func readResponse(r io.Reader) ([]byte, error) {
-	data, err := io.ReadAll(io.LimitReader(r, maxResponseBytes+1))
+func responseLimit(path string) int {
+	if path == "/api/v1/book" {
+		return maxCatalogResponseBytes
+	}
+	return maxResponseBytes
+}
+
+func readResponse(r io.Reader, limit int) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, int64(limit)+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > maxResponseBytes {
-		return nil, fmt.Errorf("response exceeds %d bytes", maxResponseBytes)
+	if len(data) > limit {
+		return nil, fmt.Errorf("response exceeds %d bytes", limit)
 	}
 	return data, nil
 }
