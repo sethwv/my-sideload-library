@@ -32,8 +32,8 @@ import (
 const DefaultCacheTTL = 12 * time.Hour
 
 const maxResponseBytes = 10 << 20
-const maxCatalogResponseBytes = 64 << 20
 const maxErrorResponseBytes = 4 << 10
+const catalogPageSize = 1000
 
 // Client is safe for concurrent use. baseURL/apiKey/enabled are mutable
 // (see SetConfig) so the admin Integrations page can turn Chaptarr on/off
@@ -285,7 +285,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		}
 		return fmt.Errorf("chaptarr: unexpected status %d for %s", resp.StatusCode, path)
 	}
-	data, err := readResponse(resp.Body, responseLimit(path))
+	data, err := readResponse(resp.Body, maxResponseBytes)
 	if err != nil {
 		return fmt.Errorf("chaptarr: decode response for %s: %w", path, err)
 	}
@@ -293,13 +293,6 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		return fmt.Errorf("chaptarr: decode response for %s: %w", path, err)
 	}
 	return nil
-}
-
-func responseLimit(path string) int {
-	if path == "/api/v1/book" {
-		return maxCatalogResponseBytes
-	}
-	return maxResponseBytes
 }
 
 func readResponse(r io.Reader, limit int) ([]byte, error) {
@@ -341,8 +334,8 @@ func (c *Client) ListBooks(ctx context.Context) ([]Book, error) {
 		authorNames[a.ID] = a.AuthorName
 	}
 
-	var bookDocs []bookDocument
-	if err := c.get(ctx, "/api/v1/book", &bookDocs); err != nil {
+	bookDocs, err := c.listBookPages(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -394,6 +387,29 @@ func (c *Client) ListBooks(ctx context.Context) ([]Book, error) {
 		books = append(books, b)
 	}
 	return books, nil
+}
+
+type pagedBookDocument struct {
+	Records    []bookDocument `json:"records"`
+	TotalCount int            `json:"totalCount"`
+}
+
+// listBookPages uses Chaptarr's paged endpoint because /api/v1/book returns
+// the entire library in a single unbounded response.
+func (c *Client) listBookPages(ctx context.Context) ([]bookDocument, error) {
+	var books []bookDocument
+	for offset := 0; ; {
+		var page pagedBookDocument
+		path := fmt.Sprintf("/api/v1/book/paged?offset=%d&pageSize=%d", offset, catalogPageSize)
+		if err := c.get(ctx, path, &page); err != nil {
+			return nil, err
+		}
+		books = append(books, page.Records...)
+		offset += len(page.Records)
+		if len(page.Records) == 0 || offset >= page.TotalCount {
+			return books, nil
+		}
+	}
 }
 
 // ListBooksCached returns the cached catalog snapshot if it's younger than

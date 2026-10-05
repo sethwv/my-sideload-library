@@ -1,7 +1,6 @@
 package chaptarr
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -25,44 +24,9 @@ func TestNewWithTransport_UsesInjectedTransport(t *testing.T) {
 		gotPath = r.URL.Path
 		gotKey = r.Header.Get("X-Api-Key")
 		gotAccept = r.Header.Get("Accept")
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`[]`)),
-			Header:     make(http.Header),
-		}, nil
-	}))
-
-	if _, err := c.ListBooks(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if gotPath != "/api/v1/book" || gotKey != "test-key" || gotAccept != "application/json" {
-		t.Errorf("request = path %q, key %q, accept %q", gotPath, gotKey, gotAccept)
-	}
-	if c.http.Timeout != 30*time.Second {
-		t.Errorf("Timeout = %v, want 30s", c.http.Timeout)
-	}
-}
-
-func TestListBooks_RejectsOversizedResponse(t *testing.T) {
-	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(bytes.NewReader(bytes.Repeat([]byte("x"), maxResponseBytes+1))),
-			Header:     make(http.Header),
-		}, nil
-	}))
-
-	if _, err := c.ListBooks(context.Background()); err == nil || !strings.Contains(err.Error(), "response exceeds") {
-		t.Errorf("ListBooks error = %v, want oversized response error", err)
-	}
-}
-
-func TestListBooks_AcceptsCatalogLargerThanDefaultLimit(t *testing.T) {
-	padding := strings.Repeat("x", maxResponseBytes)
-	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body := "[]"
-		if r.URL.Path == "/api/v1/book" {
-			body = `[{"id":1,"hasFiles":false,"padding":"` + padding + `"}]`
+		if r.URL.Path == "/api/v1/book/paged" {
+			body = `{"records":[],"totalCount":0}`
 		}
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -72,7 +36,77 @@ func TestListBooks_AcceptsCatalogLargerThanDefaultLimit(t *testing.T) {
 	}))
 
 	if _, err := c.ListBooks(context.Background()); err != nil {
-		t.Fatalf("ListBooks() error = %v, want catalog larger than %d bytes to succeed", err, maxResponseBytes)
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/book/paged" || gotKey != "test-key" || gotAccept != "application/json" {
+		t.Errorf("request = path %q, key %q, accept %q", gotPath, gotKey, gotAccept)
+	}
+	if c.http.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %v, want 30s", c.http.Timeout)
+	}
+}
+
+func TestListBooks_RejectsOversizedResponse(t *testing.T) {
+	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := "[]"
+		if r.URL.Path == "/api/v1/book/paged" {
+			body = strings.Repeat("x", maxResponseBytes+1)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	}))
+
+	if _, err := c.ListBooks(context.Background()); err == nil || !strings.Contains(err.Error(), "response exceeds") {
+		t.Errorf("ListBooks error = %v, want oversized response error", err)
+	}
+}
+
+func TestListBooks_AcceptsLargeBoundedCatalogPage(t *testing.T) {
+	padding := strings.Repeat("x", maxResponseBytes-1024)
+	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := "[]"
+		if r.URL.Path == "/api/v1/book/paged" {
+			body = `{"records":[{"id":1,"hasFiles":false,"padding":"` + padding + `"}],"totalCount":1}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     make(http.Header),
+		}, nil
+	}))
+
+	if _, err := c.ListBooks(context.Background()); err != nil {
+		t.Fatalf("ListBooks() error = %v, want catalog page below %d bytes to succeed", err, maxResponseBytes)
+	}
+}
+
+func TestListBooks_PaginatesCatalog(t *testing.T) {
+	var offsets []string
+	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		body := "[]"
+		switch r.URL.Path {
+		case "/api/v1/author":
+			body = `[{"id":1,"authorName":"Author"}]`
+		case "/api/v1/book/paged":
+			offset := r.URL.Query().Get("offset")
+			offsets = append(offsets, offset)
+			if offset == "0" {
+				body = `{"records":[{"id":1,"authorId":1,"hasFiles":false}],"totalCount":2}`
+			} else {
+				body = `{"records":[{"id":2,"authorId":1,"hasFiles":false}],"totalCount":2}`
+			}
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	}))
+
+	if _, err := c.ListBooks(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(offsets, ","); got != "0,1" {
+		t.Errorf("page offsets = %q, want %q", got, "0,1")
 	}
 }
 
@@ -189,6 +223,12 @@ func newStubChaptarrServer(t *testing.T) *httptest.Server {
 			{"id": 2, "title": "No File Yet", "authorId": 1, "seriesTitle": "The Mistborn Saga #2", "genres": ["Fantasy"], "hasFiles": false}
 		]`))
 	})
+	mux.HandleFunc("/api/v1/book/paged", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"records":[
+			{"id": 1, "title": "Mistborn", "authorId": 1, "seriesTitle": "The Mistborn Saga #1", "genres": ["Fantasy"], "ratings": {"value": 4.5}, "hasFiles": true, "hardcoverBookId": "hc:123456"},
+			{"id": 2, "title": "No File Yet", "authorId": 1, "seriesTitle": "The Mistborn Saga #2", "genres": ["Fantasy"], "hasFiles": false}
+		],"totalCount":2}`))
+	})
 	mux.HandleFunc("/api/v1/bookfile", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("authorId") == "" {
 			w.WriteHeader(http.StatusBadRequest)
@@ -244,9 +284,9 @@ func countingChaptarrServer(t *testing.T) (srv *httptest.Server, bookRequests *i
 	mux.HandleFunc("/api/v1/author", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`[{"id": 1, "authorName": "Brandon Sanderson"}]`))
 	})
-	mux.HandleFunc("/api/v1/book", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/book/paged", func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&count, 1)
-		w.Write([]byte(`[{"id": 1, "title": "Mistborn", "authorId": 1, "hasFiles": true}]`))
+		w.Write([]byte(`{"records":[{"id": 1, "title": "Mistborn", "authorId": 1, "hasFiles": true}],"totalCount":1}`))
 	})
 	mux.HandleFunc("/api/v1/bookfile", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`[{"bookId": 1, "path": "/library/Mistborn.epub"}]`))
@@ -419,9 +459,9 @@ func TestListBooks_SendsAPIKeyOnEveryRequest(t *testing.T) {
 		gotKeys = append(gotKeys, r.Header.Get("X-Api-Key"))
 		w.Write([]byte(`[{"id": 1, "authorName": "Brandon Sanderson"}]`))
 	})
-	mux.HandleFunc("/api/v1/book", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/book/paged", func(w http.ResponseWriter, r *http.Request) {
 		gotKeys = append(gotKeys, r.Header.Get("X-Api-Key"))
-		w.Write([]byte(`[{"id": 1, "title": "Mistborn", "authorId": 1, "hasFiles": true}]`))
+		w.Write([]byte(`{"records":[{"id": 1, "title": "Mistborn", "authorId": 1, "hasFiles": true}],"totalCount":1}`))
 	})
 	mux.HandleFunc("/api/v1/bookfile", func(w http.ResponseWriter, r *http.Request) {
 		gotKeys = append(gotKeys, r.Header.Get("X-Api-Key"))
