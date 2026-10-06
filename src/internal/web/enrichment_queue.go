@@ -115,7 +115,7 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 		log.Printf("enrichment queue: connection search failed for %s/%s: %v", c.Provider, c.ExternalID, err)
 		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
 	}
-	best, ok := hardcover.BestConfidentMatch(matches, c.Title, c.Author)
+	best, ok := connectionHardcoverMatch(matches, c.ISBN, c.Title, c.Author)
 	if !ok {
 		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "no_match") == nil
 	}
@@ -129,6 +129,25 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	}
 	s.promoteEnrichedConnectionMatch(c, best)
 	return true
+}
+
+func connectionHardcoverMatch(matches []hardcover.Match, isbn, title, author string) (hardcover.Match, bool) {
+	isbn = normalizeConnectionISBN(isbn)
+	if isbn != "" {
+		for _, match := range matches {
+			for _, candidateISBN := range match.ISBNs {
+				if normalizeConnectionISBN(candidateISBN) == isbn {
+					return match, true
+				}
+			}
+		}
+	}
+	return hardcover.BestConfidentMatch(matches, title, author)
+}
+
+func normalizeConnectionISBN(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.NewReplacer("-", "", " ", "").Replace(value)
 }
 
 // promoteEnrichedConnectionMatch lets a metadata match become a library match

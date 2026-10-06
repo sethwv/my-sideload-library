@@ -8,6 +8,17 @@ import (
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 )
 
+func TestConnectionHardcoverMatchPrefersExactISBN(t *testing.T) {
+	matches := []hardcover.Match{
+		{ID: "wrong", Title: "Similar Title", Authors: []string{"Other Author"}, ISBNs: []string{"9780000000000"}},
+		{ID: "right", Title: "Corrected Title", Authors: []string{"Correct Author"}, ISBNs: []string{"978-1-2345-6789-7"}},
+	}
+	match, ok := connectionHardcoverMatch(matches, "9781234567897", "Different Export Title", "Different Export Author")
+	if !ok || match.ID != "right" {
+		t.Fatalf("connectionHardcoverMatch() = %+v, %t; want exact ISBN match", match, ok)
+	}
+}
+
 func TestResolveCoverURLPinsPublicAddress(t *testing.T) {
 	originalLookupIP := lookupIP
 	t.Cleanup(func() { lookupIP = originalLookupIP })
