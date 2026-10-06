@@ -38,6 +38,9 @@ func Reconcile(username, provider string, snapshot Snapshot, store *users.Store,
 	}
 	for _, shelf := range selected {
 		if !shelf.Selected {
+			if err := db.DeleteIntegrationShelf(username, provider, shelf.RemoteKey); err != nil {
+				return err
+			}
 			continue
 		}
 		shelfItems, err := store.ConnectionItems(username, provider, shelf.RemoteKey)

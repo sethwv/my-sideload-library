@@ -109,7 +109,7 @@ func (d *DB) ListVisibleShelves(username string) ([]ShelfAccess, error) {
 	rows, err := d.sql.Query(`SELECT s.id, s.username, s.slug, s.name, s.is_system, s.visibility, s.kind, s.integration_provider, s.integration_shelf_key,
 		CASE WHEN s.username = ? THEN 'owner' WHEN sm.username IS NOT NULL THEN 'member' ELSE 'reader' END
 		FROM shelves s LEFT JOIN shelf_members sm ON sm.shelf_id = s.id AND sm.username = ?
-		WHERE s.username = ? OR sm.username IS NOT NULL OR s.visibility = 'public'
+		WHERE s.username = ? OR (s.kind = 'manual' AND (sm.username IS NOT NULL OR s.visibility = 'public'))
 		ORDER BY CASE WHEN s.username = ? THEN 0 WHEN s.visibility = 'shared' THEN 1 ELSE 2 END,
 		s.is_system DESC, s.name COLLATE NOCASE`, username, username, username, username)
 	if err != nil {
@@ -209,7 +209,7 @@ func (d *DB) GetVisibleShelf(username string, id int64) (*ShelfAccess, error) {
 	err := scanShelfAccess(d.sql.QueryRow(`SELECT s.id, s.username, s.slug, s.name, s.is_system, s.visibility, s.kind, s.integration_provider, s.integration_shelf_key,
 		CASE WHEN s.username = ? THEN 'owner' WHEN sm.username IS NOT NULL THEN 'member' ELSE 'reader' END
 		FROM shelves s LEFT JOIN shelf_members sm ON sm.shelf_id = s.id AND sm.username = ?
-		WHERE s.id = ? AND (s.username = ? OR sm.username IS NOT NULL OR s.visibility = 'public')`,
+		WHERE s.id = ? AND (s.username = ? OR (s.kind = 'manual' AND (sm.username IS NOT NULL OR s.visibility = 'public')))`,
 		username, username, id, username,
 	), &shelf)
 	if err == sql.ErrNoRows {

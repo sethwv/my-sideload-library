@@ -224,8 +224,8 @@ func (s *Server) ShelfHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type connectedShelfItem struct {
-	Title, Author string
-	Book          *index.Book
+	Title, Author, CoverURL string
+	Book                    *index.Book
 }
 
 func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, shelf *index.ShelfAccess) {
@@ -240,6 +240,14 @@ func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, sh
 		entry := connectedShelfItem{Title: item.Title, Author: item.Author}
 		if item.LocalBookID != 0 {
 			entry.Book, _ = s.DB.Get(item.LocalBookID)
+		} else {
+			if item.EnrichedTitle != "" {
+				entry.Title = item.EnrichedTitle
+			}
+			if item.EnrichedAuthor != "" {
+				entry.Author = item.EnrichedAuthor
+			}
+			entry.CoverURL = item.CoverURL
 		}
 		view = append(view, entry)
 	}

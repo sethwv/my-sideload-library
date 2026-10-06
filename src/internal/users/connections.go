@@ -24,14 +24,19 @@ type ConnectionShelf struct {
 }
 
 type ConnectionItem struct {
-	RemoteShelfKey string
-	ExternalID     string
-	Title          string
-	Author         string
-	ISBN           string
-	AddedAt        int64
-	SourcePosition int
-	LocalBookID    int64
+	RemoteShelfKey                                                         string
+	ExternalID                                                             string
+	Title                                                                  string
+	Author                                                                 string
+	ISBN                                                                   string
+	AddedAt                                                                int64
+	SourcePosition                                                         int
+	LocalBookID                                                            int64
+	HardcoverID, EnrichedTitle, EnrichedAuthor, CoverURL, EnrichmentStatus string
+}
+
+type ConnectionEnrichmentCandidate struct {
+	Username, Provider, RemoteShelfKey, ExternalID, Title, Author, ISBN string
 }
 
 func (s *Store) connectionUserID(username string) (int64, error) {
@@ -180,7 +185,7 @@ func (s *Store) ConnectionItems(username, provider, remoteShelfKey string) ([]Co
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.sql.Query(`SELECT remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? ORDER BY added_at DESC, source_position ASC`, userID, provider, remoteShelfKey)
+	rows, err := s.sql.Query(`SELECT remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id, hardcover_id, enriched_title, enriched_author, cover_url, enrichment_status FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? ORDER BY added_at DESC, source_position ASC`, userID, provider, remoteShelfKey)
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +193,38 @@ func (s *Store) ConnectionItems(username, provider, remoteShelfKey string) ([]Co
 	var items []ConnectionItem
 	for rows.Next() {
 		var item ConnectionItem
-		if err := rows.Scan(&item.RemoteShelfKey, &item.ExternalID, &item.Title, &item.Author, &item.ISBN, &item.AddedAt, &item.SourcePosition, &item.LocalBookID); err != nil {
+		if err := rows.Scan(&item.RemoteShelfKey, &item.ExternalID, &item.Title, &item.Author, &item.ISBN, &item.AddedAt, &item.SourcePosition, &item.LocalBookID, &item.HardcoverID, &item.EnrichedTitle, &item.EnrichedAuthor, &item.CoverURL, &item.EnrichmentStatus); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND ci.enrichment_status = '' ORDER BY ci.added_at DESC, ci.source_position ASC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var candidates []ConnectionEnrichmentCandidate
+	for rows.Next() {
+		var c ConnectionEnrichmentCandidate
+		if err := rows.Scan(&c.Username, &c.Provider, &c.RemoteShelfKey, &c.ExternalID, &c.Title, &c.Author, &c.ISBN); err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, c)
+	}
+	return candidates, rows.Err()
+}
+
+func (s *Store) SetConnectionItemEnrichment(c ConnectionEnrichmentCandidate, hardcoverID, title, author, coverURL, status string) error {
+	userID, err := s.connectionUserID(c.Username)
+	if err != nil {
+		return err
+	}
+	_, err = s.sql.Exec(`UPDATE connection_items SET hardcover_id = ?, enriched_title = ?, enriched_author = ?, cover_url = ?, enrichment_status = ? WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, hardcoverID, title, author, coverURL, status, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
+	return err
 }
 
 func (s *Store) SetConnectionItemMatch(username, provider, remoteShelfKey, externalID string, localBookID int64) error {

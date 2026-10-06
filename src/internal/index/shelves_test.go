@@ -180,6 +180,12 @@ func TestIntegrationShelfIsPrivateAndProviderManaged(t *testing.T) {
 	if visible, err := db.GetVisibleShelf("bob", id); err != nil || visible != nil {
 		t.Fatalf("other-user visibility = %+v, %v; want nil", visible, err)
 	}
+	if _, err := db.sql.Exec(`INSERT INTO shelf_members (shelf_id, username, created_at) VALUES (?, ?, 0)`, id, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	if visible, err := db.GetVisibleShelf("bob", id); err != nil || visible != nil {
+		t.Fatalf("member visibility = %+v, %v; want nil", visible, err)
+	}
 
 	for _, mutate := range []func() error{
 		func() error { return db.RenameShelf("alice", id, "Renamed") },

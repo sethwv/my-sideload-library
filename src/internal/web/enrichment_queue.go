@@ -3,11 +3,13 @@ package web
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 	"github.com/sethwv/my-sideload-library/internal/index"
+	"github.com/sethwv/my-sideload-library/internal/users"
 )
 
 const idlePollInterval = 30 * time.Second
@@ -36,7 +38,11 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
-		if len(candidates) == 0 {
+		connectionCandidates, err := s.Users.ConnectionEnrichmentCandidates(enrichmentBatchSize)
+		if err != nil {
+			log.Printf("enrichment queue: list connection candidates: %v", err)
+		}
+		if len(candidates) == 0 && len(connectionCandidates) == 0 {
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
@@ -88,11 +94,39 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 				processedAny = true
 			}
 		}
+		for _, c := range connectionCandidates {
+			if s.processConnectionHardcoverMatch(ctx, c) {
+				processedAny = true
+			}
+		}
 
 		if !processedAny {
 			sleepOrDone(ctx, idlePollInterval)
 		}
 	}
+}
+
+func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.ConnectionEnrichmentCandidate) bool {
+	if !s.Hardcover.Enabled() {
+		return false
+	}
+	matches, err := s.Hardcover.Search(ctx, c.Title, c.Author, c.ISBN)
+	if err != nil {
+		log.Printf("enrichment queue: connection search failed for %s/%s: %v", c.Provider, c.ExternalID, err)
+		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
+	}
+	best, ok := hardcover.BestConfidentMatch(matches, c.Title, c.Author)
+	if !ok {
+		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "no_match") == nil
+	}
+	detail, err := s.Hardcover.Detail(ctx, best.ID)
+	if err != nil {
+		log.Printf("enrichment queue: connection detail failed for %s/%s: %v", c.Provider, c.ExternalID, err)
+	}
+	if err := s.Users.SetConnectionItemEnrichment(c, best.ID, best.Title, strings.Join(best.Authors, ", "), detail.Image, "done"); err != nil {
+		log.Printf("enrichment queue: save connection enrichment: %v", err)
+	}
+	return true
 }
 
 // backfillHardcoverIDsFromChaptarr captures IDs already present in the local
