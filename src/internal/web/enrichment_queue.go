@@ -52,6 +52,9 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		var chaptarrRefreshedAt time.Time
 		if s.Chaptarr.Enabled() {
 			chBooks, chaptarrRefreshedAt = s.Chaptarr.CachedBooks()
+			if len(chBooks) > 0 {
+				s.backfillHardcoverIDsFromChaptarr(chBooks)
+			}
 			if chaptarrRefreshedAt.IsZero() || !chaptarrRefreshedAt.Add(chaptarr.DefaultCacheTTL).After(time.Now()) {
 				// The scheduler owns catalog crawls. A stale snapshot cannot
 				// concede candidates to Hardcover before Chaptarr checks them.
@@ -92,6 +95,25 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 	}
 }
 
+// backfillHardcoverIDsFromChaptarr captures IDs already present in the local
+// Chaptarr snapshot. It deliberately performs no Hardcover request.
+func (s *Server) backfillHardcoverIDsFromChaptarr(chBooks []chaptarr.Book) {
+	books, err := s.DB.BooksMissingHardcoverID(500)
+	if err != nil {
+		log.Printf("enrichment queue: list missing hardcover ids: %v", err)
+		return
+	}
+	for _, book := range books {
+		match, ok := chaptarr.MatchByPath(chBooks, book.FilePath)
+		if !ok || match.HardcoverID == "" {
+			continue
+		}
+		if err := s.DB.SetHardcoverID(book.ID, match.HardcoverID); err != nil {
+			log.Printf("enrichment queue: backfill hardcover id for book %d: %v", book.ID, err)
+		}
+	}
+}
+
 func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCandidate, chBooks []chaptarr.Book, overwriteCover bool) bool {
 	if !s.Chaptarr.Enabled() || chBooks == nil {
 		return false
@@ -115,6 +137,11 @@ func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCan
 	if err := s.DB.ApplyEnrichment(c.ID, fields, index.SourceChaptarr); err != nil {
 		log.Printf("enrichment queue: chaptarr apply enrichment failed for book %d: %v", c.ID, err)
 		return true
+	}
+	if match.HardcoverID != "" {
+		if err := s.DB.SetHardcoverID(c.ID, match.HardcoverID); err != nil {
+			log.Printf("enrichment queue: save hardcover id for book %d: %v", c.ID, err)
+		}
 	}
 
 	if hcDetail.Image != "" {
@@ -173,6 +200,9 @@ func (s *Server) processHardcoverMatch(ctx context.Context, c index.EnrichmentCa
 		log.Printf("enrichment queue: apply enrichment failed for book %d: %v", c.ID, err)
 		s.DB.SetEnrichmentStatus(c.ID, "error")
 		return true
+	}
+	if err := s.DB.SetHardcoverID(c.ID, best.ID); err != nil {
+		log.Printf("enrichment queue: save hardcover id for book %d: %v", c.ID, err)
 	}
 
 	if detail.Image != "" {

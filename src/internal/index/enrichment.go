@@ -107,6 +107,32 @@ func (d *DB) BooksNeedingEnrichment(limit int) ([]EnrichmentCandidate, error) {
 	return out, rows.Err()
 }
 
+// BooksMissingHardcoverID returns local books that can be linked to a known
+// Chaptarr Hardcover ID without issuing a Hardcover API request.
+func (d *DB) BooksMissingHardcoverID(limit int) ([]EnrichmentCandidate, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	rows, err := d.sql.Query(`SELECT b.id, b.title, b.author, b.identifier, b.file_path, b.added_at
+		FROM books b LEFT JOIN book_enrichment be ON be.book_id = b.id
+		WHERE COALESCE(be.hardcover_id, '') = '' ORDER BY b.id LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var books []EnrichmentCandidate
+	for rows.Next() {
+		var candidate EnrichmentCandidate
+		var addedAt int64
+		if err := rows.Scan(&candidate.ID, &candidate.Title, &candidate.Author, &candidate.Identifier, &candidate.FilePath, &addedAt); err != nil {
+			return nil, err
+		}
+		candidate.AddedAt = time.Unix(addedAt, 0)
+		books = append(books, candidate)
+	}
+	return books, rows.Err()
+}
+
 // SetEnrichmentStatus records the outcome of an enrichment attempt for a
 // book, so it isn't retried every scan/queue pass. Valid statuses: "done",
 // "no_match", "error".
@@ -126,6 +152,13 @@ func (d *DB) SetChaptarrStatus(bookID int64, status string) error {
 // Hardcover match" filter. Valid statuses: "done", "no_match", "error".
 func (d *DB) SetHardcoverStatus(bookID int64, status string) error {
 	return setProviderStatus(d.sql, "hardcover_status", bookID, status)
+}
+
+// SetHardcoverID records the canonical Hardcover book ID after a confident
+// provider match so account shelf sync can resolve the exact same work.
+func (d *DB) SetHardcoverID(bookID int64, hardcoverID string) error {
+	_, err := d.sql.Exec(`INSERT INTO book_enrichment (book_id, hardcover_id, updated_at) VALUES (?, ?, ?) ON CONFLICT(book_id) DO UPDATE SET hardcover_id = excluded.hardcover_id, updated_at = excluded.updated_at`, bookID, strings.TrimSpace(hardcoverID), time.Now().Unix())
+	return err
 }
 
 func setProviderStatus(exec sqlExecer, column string, bookID int64, status string) error {

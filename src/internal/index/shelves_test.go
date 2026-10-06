@@ -535,3 +535,27 @@ func TestFilter_ShelfID(t *testing.T) {
 		t.Errorf("Count(Filter{ShelfID}) = %d, want 1", count)
 	}
 }
+
+func TestFindConnectionBookPrefersPersistedHardcoverID(t *testing.T) {
+	libDir := t.TempDir()
+	writeTestEpub(t, filepath.Join(libDir, "book.epub"), "Local Title", "Local Author")
+	db := openTestDB(t)
+	if err := db.Scan([]string{libDir}, nil); err != nil {
+		t.Fatal(err)
+	}
+	books, err := db.List(SortTitle, false, 1, 10, Filter{})
+	if err != nil || len(books) != 1 {
+		t.Fatalf("setup books = %+v, %v", books, err)
+	}
+	if err := db.SetHardcoverID(books[0].ID, "12345"); err != nil {
+		t.Fatal(err)
+	}
+	matchedID, err := db.FindConnectionBook("hardcover", "12345", "", "Different Title", "Different Author")
+	if err != nil || matchedID != books[0].ID {
+		t.Fatalf("hardcover ID match = %d, %v; want %d", matchedID, err, books[0].ID)
+	}
+	matchedID, err = db.FindConnectionBook("goodreads", "12345", "", "Different Title", "Different Author")
+	if err != nil || matchedID != 0 {
+		t.Fatalf("non-hardcover ID match = %d, %v; want no match", matchedID, err)
+	}
+}
