@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -57,6 +59,48 @@ func TestRequireCSRFRejectsMissingAndForeignTokens(t *testing.T) {
 		if w.Code != http.StatusForbidden {
 			t.Errorf("status = %d, want %d", w.Code, http.StatusForbidden)
 		}
+	}
+}
+
+func TestRequireCSRFAcceptsMultipartFormToken(t *testing.T) {
+	a := testAuthenticator(t)
+	initial := csrfRequest(t, a, "reader", url.Values{})
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField(csrfFormField, a.CSRFToken(initial)); err != nil {
+		t.Fatal(err)
+	}
+	file, err := writer.CreateFormFile("file", "goodreads.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write([]byte("Book Id,Title\n1,Example\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/account/connections/goodreads", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, cookie := range initial.Cookies() {
+		req.AddCookie(cookie)
+	}
+	w := httptest.NewRecorder()
+	a.RequireCSRF(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		file.Close()
+		if header.Filename != "goodreads.csv" {
+			t.Errorf("filename = %q, want goodreads.csv", header.Filename)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})).ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
 	}
 }
 

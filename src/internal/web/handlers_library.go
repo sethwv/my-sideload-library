@@ -215,8 +215,49 @@ func (s *Server) ShelfHandler(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if shelf.IsIntegration() {
+		s.renderConnectedShelf(w, r, shelf)
+		return
+	}
 	manageShelf := shelf.Role == "owner" || (s.Users.Can(username, users.PermissionManageShelves) && !auth.IsRestricted(r.Context()))
 	s.renderBookList(w, r, bookListParams{action: "/shelves/" + strconv.FormatInt(id, 10), filter: index.Filter{ShelfID: id}, heading: shelf.Name, defaultSort: index.SortTitle, viewingShelfID: id, manageShelf: manageShelf})
+}
+
+type connectedShelfItem struct {
+	Title, Author string
+	Book          *index.Book
+}
+
+func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, shelf *index.ShelfAccess) {
+	username, _ := auth.UsernameFromContext(r.Context())
+	items, err := s.Users.ConnectionItems(username, shelf.Provider, shelf.RemoteKey)
+	if err != nil {
+		http.Error(w, "failed to load connected shelf", http.StatusInternalServerError)
+		return
+	}
+	view := make([]connectedShelfItem, 0, len(items))
+	for _, item := range items {
+		entry := connectedShelfItem{Title: item.Title, Author: item.Author}
+		if item.LocalBookID != 0 {
+			entry.Book, _ = s.DB.Get(item.LocalBookID)
+		}
+		view = append(view, entry)
+	}
+	base, _, err := s.baseData(r)
+	if err != nil {
+		http.Error(w, "failed to load page", http.StatusInternalServerError)
+		return
+	}
+	hasDownloads := false
+	for _, item := range view {
+		if item.Book != nil {
+			hasDownloads = true
+			break
+		}
+	}
+	data := map[string]any{"Title": shelf.Name, "Shelf": shelf, "Items": view, "HasDownloads": hasDownloads}
+	mergeInto(data, base)
+	render(w, "connected_shelf.html", data)
 }
 
 func (s *Server) ShelfToggle(w http.ResponseWriter, r *http.Request) {

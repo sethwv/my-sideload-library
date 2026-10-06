@@ -12,6 +12,7 @@ import (
 
 	"github.com/sethwv/my-sideload-library/internal/auth"
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
+	"github.com/sethwv/my-sideload-library/internal/connections"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 	"github.com/sethwv/my-sideload-library/internal/index"
 	"github.com/sethwv/my-sideload-library/internal/mail"
@@ -1557,6 +1558,97 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, page, tab
 	}
 	mergeInto(data, base)
 	render(w, page, data)
+}
+
+func (s *Server) AccountConnections(w http.ResponseWriter, r *http.Request) {
+	s.renderConnections(w, r, "", "")
+}
+
+func (s *Server) renderConnections(w http.ResponseWriter, r *http.Request, errMsg, status string) {
+	base, _, err := s.baseData(r)
+	if err != nil {
+		http.Error(w, "failed to load page", http.StatusInternalServerError)
+		return
+	}
+	username, _ := auth.UsernameFromContext(r.Context())
+	providerConnections, err := s.Users.ListConnections(username)
+	if err != nil {
+		http.Error(w, "failed to load connections", http.StatusInternalServerError)
+		return
+	}
+	shelves, err := s.Users.ConnectionShelves(username, "goodreads")
+	if err != nil {
+		http.Error(w, "failed to load Goodreads shelves", http.StatusInternalServerError)
+		return
+	}
+	data := map[string]any{"Title": "Connections", "AccountTab": "connections", "Error": errMsg, "Status": status, "Connections": providerConnections, "GoodreadsShelves": shelves}
+	mergeInto(data, base)
+	render(w, "account_connections.html", data)
+}
+
+func (s *Server) AccountGoodreadsUpload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		s.renderConnections(w, r, "upload a Goodreads CSV smaller than 10 MB", "")
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		s.renderConnections(w, r, "choose a Goodreads CSV file", "")
+		return
+	}
+	defer file.Close()
+	snapshot, err := connections.ParseGoodreadsCSV(file)
+	if err != nil {
+		s.renderConnections(w, r, err.Error(), "")
+		return
+	}
+	username, _ := auth.UsernameFromContext(r.Context())
+	if err := s.Users.SaveConnection(username, "goodreads", "", true); err != nil {
+		http.Error(w, "failed to save connection", http.StatusInternalServerError)
+		return
+	}
+	if err := connections.Reconcile(username, "goodreads", snapshot, s.Users, s.DB); err != nil {
+		http.Error(w, "failed to import Goodreads library", http.StatusInternalServerError)
+		return
+	}
+	s.renderConnections(w, r, "", "Goodreads import saved. Select shelves to sync.")
+}
+
+func (s *Server) AccountGoodreadsShelves(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	username, _ := auth.UsernameFromContext(r.Context())
+	shelves, err := s.Users.ConnectionShelves(username, "goodreads")
+	if err != nil {
+		http.Error(w, "failed to load Goodreads shelves", http.StatusInternalServerError)
+		return
+	}
+	for _, shelf := range shelves {
+		if err := s.Users.SetConnectionShelfSelection(username, "goodreads", shelf.RemoteKey, r.FormValue("shelf-"+shelf.RemoteKey) == "on"); err != nil {
+			http.Error(w, "failed to save Goodreads shelves", http.StatusInternalServerError)
+			return
+		}
+	}
+	var snapshot connections.Snapshot
+	for _, shelf := range shelves {
+		snapshot.Shelves = append(snapshot.Shelves, connections.Shelf{Key: shelf.RemoteKey, Name: shelf.Name})
+		items, err := s.Users.ConnectionItems(username, "goodreads", shelf.RemoteKey)
+		if err != nil {
+			http.Error(w, "failed to load Goodreads items", http.StatusInternalServerError)
+			return
+		}
+		for _, item := range items {
+			snapshot.Items = append(snapshot.Items, connections.Item{ShelfKey: item.RemoteShelfKey, ExternalID: item.ExternalID, Title: item.Title, Author: item.Author, ISBN: item.ISBN, AddedAt: item.AddedAt, Position: item.SourcePosition})
+		}
+	}
+	if err := connections.Reconcile(username, "goodreads", snapshot, s.Users, s.DB); err != nil {
+		http.Error(w, "failed to sync Goodreads shelves", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/account/connections", http.StatusSeeOther)
 }
 
 // AccountEmailSubmit updates the logged-in user's optional email address.

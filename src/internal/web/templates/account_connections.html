@@ -1,0 +1,9 @@
+{{define "content"}}
+{{template "topbar" .}}{{template "accounttabs" .}}
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}{{if .Status}}<p class="muted">{{.Status}}</p>{{end}}
+<h1>Connections</h1>
+<h2>Goodreads Import</h2>
+<p class="muted">Export your Goodreads library as CSV, then select the shelves Sideload Library should mirror.</p>
+<form method="POST" action="/account/connections/goodreads" enctype="multipart/form-data" class="modal-field-form">{{template "csrf_field" .}}<input type="file" name="file" accept=".csv,text/csv" required><button type="submit">Import Goodreads CSV</button></form>
+{{if .GoodreadsShelves}}<form method="POST" action="/account/connections/goodreads/shelves" class="modal-field-form">{{template "csrf_field" .}}<h3>Sync these shelves</h3>{{range .GoodreadsShelves}}<label><input type="checkbox" name="shelf-{{.RemoteKey}}" {{if .Selected}}checked{{end}}> {{.Name}}</label><br>{{end}}<button type="submit">Save and sync shelves</button></form>{{end}}
+{{end}}

@@ -4,10 +4,15 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"mime"
 	"net/http"
+	"strings"
 )
 
-const csrfFormField = "csrf_token"
+const (
+	csrfFormField         = "csrf_token"
+	csrfMultipartMaxBytes = 10 << 20
+)
 
 // CSRFToken returns a token tied to the current signed session cookie. The
 // token has no server-side state and becomes unusable when the session does.
@@ -30,7 +35,18 @@ func (a *Authenticator) CSRFToken(r *http.Request) string {
 // behavior.
 func (a *Authenticator) RequireCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
+		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		if strings.EqualFold(mediaType, "multipart/form-data") {
+			r.Body = http.MaxBytesReader(w, r.Body, csrfMultipartMaxBytes)
+			err = r.ParseMultipartForm(csrfMultipartMaxBytes)
+		} else {
+			err = r.ParseForm()
+		}
+		if err != nil {
 			http.Error(w, "bad form", http.StatusBadRequest)
 			return
 		}
