@@ -125,8 +125,52 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	}
 	if err := s.Users.SetConnectionItemEnrichment(c, best.ID, best.Title, strings.Join(best.Authors, ", "), detail.Image, "done"); err != nil {
 		log.Printf("enrichment queue: save connection enrichment: %v", err)
+		return true
 	}
+	s.promoteEnrichedConnectionMatch(c, best)
 	return true
+}
+
+// promoteEnrichedConnectionMatch lets a metadata match become a library match
+// without waiting for the user to re-import the provider snapshot.
+func (s *Server) promoteEnrichedConnectionMatch(c users.ConnectionEnrichmentCandidate, match hardcover.Match) {
+	bookID, err := s.DB.FindConnectionBook("hardcover", match.ID, c.ISBN, match.Title, strings.Join(match.Authors, ", "))
+	if err != nil {
+		log.Printf("enrichment queue: resolve enriched connection match: %v", err)
+		return
+	}
+	if bookID == 0 {
+		return
+	}
+	if err := s.Users.SetConnectionItemMatch(c.Username, c.Provider, c.RemoteShelfKey, c.ExternalID, bookID); err != nil {
+		log.Printf("enrichment queue: save enriched connection match: %v", err)
+		return
+	}
+	shelves, err := s.Users.ConnectionShelves(c.Username, c.Provider)
+	if err != nil {
+		log.Printf("enrichment queue: load connection shelves: %v", err)
+		return
+	}
+	for _, shelf := range shelves {
+		if shelf.RemoteKey != c.RemoteShelfKey || !shelf.Selected {
+			continue
+		}
+		items, err := s.Users.ConnectionItems(c.Username, c.Provider, c.RemoteShelfKey)
+		if err != nil {
+			log.Printf("enrichment queue: load connection items: %v", err)
+			return
+		}
+		bookIDs := make([]int64, 0, len(items))
+		for _, item := range items {
+			if item.LocalBookID != 0 {
+				bookIDs = append(bookIDs, item.LocalBookID)
+			}
+		}
+		if _, err := s.DB.ReplaceIntegrationShelfBooks(c.Username, c.Provider, c.RemoteShelfKey, shelf.Name, bookIDs); err != nil {
+			log.Printf("enrichment queue: refresh integration shelf: %v", err)
+		}
+		return
+	}
 }
 
 // backfillHardcoverIDsFromChaptarr captures IDs already present in the local
