@@ -1271,7 +1271,7 @@ func (s *Server) renderShelfSettings(w http.ResponseWriter, r *http.Request, req
 			return
 		}
 	}
-	if shelf == nil || shelf.IsSystem {
+	if shelf == nil || shelf.IsSystem || shelf.IsIntegration() {
 		http.NotFound(w, r)
 		return
 	}

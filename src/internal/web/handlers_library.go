@@ -207,7 +207,7 @@ func (s *Server) ShelfHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to load shelf", http.StatusInternalServerError)
 			return
 		}
-		if managed != nil {
+		if managed != nil && !managed.IsIntegration() {
 			shelf = &index.ShelfAccess{Shelf: *managed, Role: "manager"}
 		}
 	}

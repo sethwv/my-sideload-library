@@ -143,6 +143,83 @@ func TestUserShelfLimitAndSystemShelfProtection(t *testing.T) {
 	}
 }
 
+func TestIntegrationShelfIsPrivateAndProviderManaged(t *testing.T) {
+	db := openTestDB(t)
+
+	id, err := db.EnsureIntegrationShelf("alice", "goodreads", "to-read", "To Read")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := db.EnsureIntegrationShelf("alice", "goodreads", "to-read", "Want to Read")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != id {
+		t.Fatalf("EnsureIntegrationShelf ids = %d, %d; want idempotent result", id, again)
+	}
+	shelf, err := db.GetShelf(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shelf == nil || !shelf.IsIntegration() || shelf.IsSystem || shelf.Visibility != ShelfVisibilityPrivate || shelf.Provider != "goodreads" || shelf.RemoteKey != "to-read" || shelf.Name != "Want to Read" {
+		t.Fatalf("integration shelf = %+v", shelf)
+	}
+
+	if _, err := db.CreateShelf("alice", "Manual", 1); err != nil {
+		t.Fatalf("integration shelf should not consume manual quota: %v", err)
+	}
+	if _, err := db.CreateShelf("alice", "One too many", 1); err == nil {
+		t.Fatal("expected manual shelf limit after one manual shelf")
+	}
+	if editable, err := db.ListEditableShelves("alice"); err != nil || len(editable) != 1 || editable[0].IsIntegration() {
+		t.Fatalf("ListEditableShelves = %+v, %v", editable, err)
+	}
+	if editable, err := db.GetEditableShelf("alice", id); err != nil || editable != nil {
+		t.Fatalf("GetEditableShelf integration = %+v, %v; want nil", editable, err)
+	}
+	if visible, err := db.GetVisibleShelf("bob", id); err != nil || visible != nil {
+		t.Fatalf("other-user visibility = %+v, %v; want nil", visible, err)
+	}
+
+	for _, mutate := range []func() error{
+		func() error { return db.RenameShelf("alice", id, "Renamed") },
+		func() error { return db.DeleteShelf("alice", id) },
+		func() error { return db.SetShelfVisibility("alice", id, ShelfVisibilityShared) },
+		func() error { return db.AddShelfMember("alice", id, "bob") },
+		func() error { return db.AddBookToShelf(id, 42) },
+		func() error { return db.RemoveBookFromShelf(id, 42) },
+	} {
+		if err := mutate(); err == nil {
+			t.Fatal("expected manual integration shelf mutation to fail")
+		}
+	}
+
+	if _, err := db.ReplaceIntegrationShelfBooks("alice", "goodreads", "to-read", "Want to Read", []int64{42, 42, 99}); err != nil {
+		t.Fatal(err)
+	}
+	for _, bookID := range []int64{42, 99} {
+		on, err := db.IsBookOnShelf(id, bookID)
+		if err != nil || !on {
+			t.Fatalf("book %d after trusted sync = %t, %v", bookID, on, err)
+		}
+	}
+	if _, err := db.ReplaceIntegrationShelfBooks("alice", "goodreads", "to-read", "Want to Read", []int64{99}); err != nil {
+		t.Fatal(err)
+	}
+	if on, err := db.IsBookOnShelf(id, 42); err != nil || on {
+		t.Fatalf("removed provider book after replacement = %t, %v", on, err)
+	}
+	if recent, err := db.RecentShelf("alice", 99); err != nil || recent != nil {
+		t.Fatalf("RecentShelf integration = %+v, %v; want nil", recent, err)
+	}
+	if err := db.DeleteIntegrationShelf("alice", "goodreads", "to-read"); err != nil {
+		t.Fatal(err)
+	}
+	if shelf, err := db.GetShelf(id); err != nil || shelf != nil {
+		t.Fatalf("GetShelf after integration removal = %+v, %v", shelf, err)
+	}
+}
+
 func TestShelfSharingAccessAndMembership(t *testing.T) {
 	db := openTestDB(t)
 	shared, err := db.CreateShelf("alice", "Club Picks", 25)
