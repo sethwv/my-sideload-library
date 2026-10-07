@@ -212,6 +212,9 @@ func TestConnectedShelfUsesLibraryControlsAndGhostCards(t *testing.T) {
 	if err := server.Users.SetConnectionItemEnrichment(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "second"}, "", "", "", "https://covers.example/second.jpg", "not-found"); err != nil {
 		t.Fatal(err)
 	}
+	if err := server.Users.SetConnectionItemCoverPath(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "second"}, "connection-test.jpg"); err != nil {
+		t.Fatal(err)
+	}
 	shelfID, err := server.DB.ReplaceIntegrationShelfBooks("reader", "goodreads", "read", "Goodreads: Read", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -224,7 +227,7 @@ func TestConnectedShelfUsesLibraryControlsAndGhostCards(t *testing.T) {
 		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
 	}
 	body := recorder.Body.String()
-	for _, want := range []string{"Provider order", "Second missing", "connected-ghost", "MISSING", "https://covers.example/second.jpg"} {
+	for _, want := range []string{"Provider order", "Second missing", "connected-ghost", "MISSING", "/cover?item=second&amp;provider=goodreads&amp;shelf=read"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("connected shelf missing %q: %s", want, body)
 		}

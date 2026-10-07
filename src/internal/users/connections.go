@@ -24,20 +24,20 @@ type ConnectionShelf struct {
 }
 
 type ConnectionItem struct {
-	RemoteShelfKey                                                         string
-	ExternalID                                                             string
-	Title                                                                  string
-	Author                                                                 string
-	ISBN                                                                   string
-	AddedAt                                                                int64
-	SourcePosition                                                         int
-	LocalBookID                                                            int64
-	HardcoverID, EnrichedTitle, EnrichedAuthor, CoverURL, EnrichmentStatus string
+	RemoteShelfKey                                                                    string
+	ExternalID                                                                        string
+	Title                                                                             string
+	Author                                                                            string
+	ISBN                                                                              string
+	AddedAt                                                                           int64
+	SourcePosition                                                                    int
+	LocalBookID                                                                       int64
+	HardcoverID, EnrichedTitle, EnrichedAuthor, CoverURL, CoverPath, EnrichmentStatus string
 }
 
 type ConnectionEnrichmentCandidate struct {
 	Username, Provider, RemoteShelfKey, ExternalID, Title, Author, ISBN string
-	HardcoverID, EnrichedTitle, EnrichedAuthor                          string
+	HardcoverID, EnrichedTitle, EnrichedAuthor, CoverURL                string
 }
 
 // ConnectionPromotionCandidates returns unresolved provider items whose
@@ -254,7 +254,7 @@ func (s *Store) ConnectionItemsPage(username, provider, remoteShelfKey, search, 
 	} else if sort != "provider" {
 		order += " ASC"
 	}
-	query := `SELECT remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id, hardcover_id, enriched_title, enriched_author, cover_url, enrichment_status FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND (? = '' OR title || ' ' || author || ' ' || enriched_title || ' ' || enriched_author LIKE '%' || ? || '%') ORDER BY ` + order
+	query := `SELECT remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id, hardcover_id, enriched_title, enriched_author, cover_url, cover_path, enrichment_status FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND (? = '' OR title || ' ' || author || ' ' || enriched_title || ' ' || enriched_author LIKE '%' || ? || '%') ORDER BY ` + order
 	args := []any{userID, provider, remoteShelfKey, search, search}
 	if pageSize > 0 {
 		query += " LIMIT ? OFFSET ?"
@@ -268,12 +268,31 @@ func (s *Store) ConnectionItemsPage(username, provider, remoteShelfKey, search, 
 	var items []ConnectionItem
 	for rows.Next() {
 		var item ConnectionItem
-		if err := rows.Scan(&item.RemoteShelfKey, &item.ExternalID, &item.Title, &item.Author, &item.ISBN, &item.AddedAt, &item.SourcePosition, &item.LocalBookID, &item.HardcoverID, &item.EnrichedTitle, &item.EnrichedAuthor, &item.CoverURL, &item.EnrichmentStatus); err != nil {
+		if err := rows.Scan(&item.RemoteShelfKey, &item.ExternalID, &item.Title, &item.Author, &item.ISBN, &item.AddedAt, &item.SourcePosition, &item.LocalBookID, &item.HardcoverID, &item.EnrichedTitle, &item.EnrichedAuthor, &item.CoverURL, &item.CoverPath, &item.EnrichmentStatus); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (s *Store) SetConnectionItemCoverPath(c ConnectionEnrichmentCandidate, coverPath string) error {
+	userID, err := s.connectionUserID(c.Username)
+	if err != nil {
+		return err
+	}
+	_, err = s.sql.Exec(`UPDATE connection_items SET cover_path = ? WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, coverPath, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
+	return err
+}
+
+func (s *Store) ConnectionCoverPath(username, provider, remoteShelfKey, externalID string) (string, error) {
+	userID, err := s.connectionUserID(username)
+	if err != nil {
+		return "", err
+	}
+	var coverPath string
+	err = s.sql.QueryRow(`SELECT cover_path FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, userID, provider, remoteShelfKey, externalID).Scan(&coverPath)
+	return coverPath, err
 }
 
 func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
@@ -286,6 +305,25 @@ func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmen
 	for rows.Next() {
 		var c ConnectionEnrichmentCandidate
 		if err := rows.Scan(&c.Username, &c.Provider, &c.RemoteShelfKey, &c.ExternalID, &c.Title, &c.Author, &c.ISBN); err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, c)
+	}
+	return candidates, rows.Err()
+}
+
+// ConnectionCoverCacheCandidates returns enriched ghost covers that have not
+// been persisted to the local thumbnail store yet.
+func (s *Store) ConnectionCoverCacheCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.cover_url FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND ci.cover_url != '' AND ci.cover_path = '' ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var candidates []ConnectionEnrichmentCandidate
+	for rows.Next() {
+		var c ConnectionEnrichmentCandidate
+		if err := rows.Scan(&c.Username, &c.Provider, &c.RemoteShelfKey, &c.ExternalID, &c.CoverURL); err != nil {
 			return nil, err
 		}
 		candidates = append(candidates, c)

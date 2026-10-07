@@ -261,6 +261,7 @@ func main() {
 	mux.Handle("POST /shelves/{id}/settings/members", authn.RequirePermission(users.PermissionOwnShelves, protectedPost(http.HandlerFunc(srv.ShelfSettingsMemberAdd))))
 	mux.Handle("POST /shelves/{id}/settings/members/{username}/delete", authn.RequirePermission(users.PermissionOwnShelves, protectedPost(http.HandlerFunc(srv.ShelfSettingsMemberDelete))))
 	mux.Handle("GET /covers/{id}", authn.RequireAuth(http.HandlerFunc(srv.Cover)))
+	mux.Handle("GET /cover", authn.RequireAuth(http.HandlerFunc(srv.CachedCover)))
 	mux.Handle("GET /books/{id}/download", authn.RequireAuth(http.HandlerFunc(srv.DownloadEPUB)))
 	mux.Handle("GET /books/{id}/download.kepub", authn.RequireAuth(http.HandlerFunc(srv.DownloadKepub)))
 	mux.Handle("POST /books/{id}/shelves/{shelfID}", authn.RequireAuth(protectedPost(http.HandlerFunc(srv.ShelfToggle))))

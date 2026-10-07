@@ -3,6 +3,7 @@ package thumbnail
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -53,6 +54,16 @@ func (s *Store) SetWidth(width int) {
 // SaveCover decodes, resizes, and writes the cover for bookID, returning the
 // filename (relative to the covers dir) to store as cover_path.
 func (s *Store) SaveCover(bookID int64, data []byte, mediaType string) (string, error) {
+	return s.saveCover(fmt.Sprintf("%d.jpg", bookID), data)
+}
+
+// SaveConnectionCover stores a provider cover under a stable opaque name.
+func (s *Store) SaveConnectionCover(key string, data []byte, mediaType string) (string, error) {
+	name := fmt.Sprintf("connection-%x.jpg", sha256.Sum256([]byte(key)))
+	return s.saveCover(name, data)
+}
+
+func (s *Store) saveCover(name string, data []byte) (string, error) {
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return "", fmt.Errorf("decode cover: %w", err)
@@ -66,7 +77,6 @@ func (s *Store) SaveCover(bookID int64, data []byte, mediaType string) (string, 
 	resized := image.NewRGBA(image.Rect(0, 0, width, height))
 	draw.CatmullRom.Scale(resized, resized.Bounds(), img, bounds, draw.Over, nil)
 
-	name := fmt.Sprintf("%d.jpg", bookID)
 	fullPath := filepath.Join(s.dir, name)
 
 	f, err := os.Create(fullPath)

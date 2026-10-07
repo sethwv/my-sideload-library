@@ -19,9 +19,21 @@ var lookupIP = net.LookupIP
 // applyCoverFromURL fetches a cover through a pinned, publicly-routable HTTPS
 // address, then stores it through the normal cover cache.
 func (s *Server) applyCoverFromURL(ctx context.Context, bookID int64, rawURL string) error {
+	data, mediaType, err := fetchCover(ctx, rawURL)
+	if err != nil {
+		return err
+	}
+	path, err := s.Covers.SaveCover(bookID, data, mediaType)
+	if err != nil {
+		return err
+	}
+	return s.DB.SetCover(bookID, path)
+}
+
+func fetchCover(ctx context.Context, rawURL string) ([]byte, string, error) {
 	u, requestHost, serverName, err := resolveCoverURL(rawURL)
 	if err != nil {
-		return fmt.Errorf("refusing to fetch cover url: %w", err)
+		return nil, "", fmt.Errorf("refusing to fetch cover url: %w", err)
 	}
 
 	// Build the request URL from the vetted connection target. The path and query
@@ -36,7 +48,7 @@ func (s *Server) applyCoverFromURL(ctx context.Context, bookID int64, rawURL str
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	req.Host = requestHost
 	client := &http.Client{
@@ -50,22 +62,18 @@ func (s *Server) applyCoverFromURL(ctx context.Context, bookID int64, rawURL str
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return &httpStatusError{resp.StatusCode}
+		return nil, "", &httpStatusError{resp.StatusCode}
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxCoverBytes))
 	if err != nil {
-		return err
+		return nil, "", err
 	}
-	path, err := s.Covers.SaveCover(bookID, data, resp.Header.Get("Content-Type"))
-	if err != nil {
-		return err
-	}
-	return s.DB.SetCover(bookID, path)
+	return data, resp.Header.Get("Content-Type"), nil
 }
 
 func resolveCoverURL(rawURL string) (*url.URL, string, string, error) {

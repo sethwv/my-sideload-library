@@ -55,7 +55,11 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		if err != nil {
 			log.Printf("enrichment queue: list connection candidates: %v", err)
 		}
-		if len(candidates) == 0 && len(connectionCandidates) == 0 {
+		coverCandidates, err := s.Users.ConnectionCoverCacheCandidates(enrichmentBatchSize)
+		if err != nil {
+			log.Printf("enrichment queue: list connection cover cache candidates: %v", err)
+		}
+		if len(candidates) == 0 && len(connectionCandidates) == 0 && len(coverCandidates) == 0 {
 			logState("idle, no eligible candidates")
 			sleepOrDone(ctx, idlePollInterval)
 			continue
@@ -87,9 +91,16 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		if s.Hardcover.Enabled() && chBooks != nil {
 			knownHardcoverMatches, knownHardcoverDetails, knownHardcoverLookedUp = s.batchChaptarrHardcoverLookups(ctx, candidates, chBooks)
 		}
-		logState(fmt.Sprintf("processing %d library and %d connection candidates (hardcover=%t chaptarr_cache=%t)", len(candidates), len(connectionCandidates), s.Hardcover.Enabled(), chBooks != nil))
+		logState(fmt.Sprintf("processing %d library, %d connection, and %d cover cache candidates (hardcover=%t chaptarr_cache=%t)", len(candidates), len(connectionCandidates), len(coverCandidates), s.Hardcover.Enabled(), chBooks != nil))
 
 		processedAny := false
+		for _, c := range coverCandidates {
+			if err := s.cacheConnectionCover(ctx, c, c.CoverURL); err != nil {
+				log.Printf("enrichment queue: cache connection cover for %s/%s: %v", c.Provider, c.ExternalID, err)
+				continue
+			}
+			processedAny = true
+		}
 		// Handle deterministic Chaptarr paths before generic matching.
 		for _, c := range candidates {
 			select {
@@ -161,8 +172,25 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 		log.Printf("enrichment queue: save connection enrichment: %v", err)
 		return true
 	}
+	if detail.Image != "" {
+		if err := s.cacheConnectionCover(ctx, c, detail.Image); err != nil {
+			log.Printf("enrichment queue: cache connection cover for %s/%s: %v", c.Provider, c.ExternalID, err)
+		}
+	}
 	s.promoteEnrichedConnectionMatch(c, best)
 	return true
+}
+
+func (s *Server) cacheConnectionCover(ctx context.Context, c users.ConnectionEnrichmentCandidate, rawURL string) error {
+	data, mediaType, err := fetchCover(ctx, rawURL)
+	if err != nil {
+		return err
+	}
+	path, err := s.Covers.SaveConnectionCover(c.Username+"\x00"+c.Provider+"\x00"+c.RemoteShelfKey+"\x00"+c.ExternalID, data, mediaType)
+	if err != nil {
+		return err
+	}
+	return s.Users.SetConnectionItemCoverPath(c, path)
 }
 
 // batchChaptarrHardcoverLookups resolves IDs supplied by Chaptarr together,

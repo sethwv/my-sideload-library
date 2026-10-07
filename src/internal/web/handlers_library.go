@@ -296,7 +296,7 @@ func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, sh
 		if item.EnrichedAuthor != "" {
 			author = item.EnrichedAuthor
 		}
-		cards = append(cards, bookCard{Book: index.Book{Title: title, Author: author, AddedAt: item.AddedAt}, Ghost: true, CoverURL: item.CoverURL})
+		cards = append(cards, bookCard{Book: index.Book{Title: title, Author: author, AddedAt: item.AddedAt}, Ghost: true, CoverURL: cachedCoverURL(shelf.Provider, item)})
 	}
 	pages := make([]int, totalPages)
 	for i := range pages {
@@ -341,6 +341,17 @@ func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, sh
 	data := map[string]any{"Title": shelf.Name, "Heading": shelf.Name, "Books": books, "BookCards": cards, "Sort": sort, "Dir": dir, "ToggleDir": toggleDir, "Page": page, "PrevPage": page - 1, "NextPage": page + 1, "HasNext": page < totalPages, "TotalPages": totalPages, "Pages": pages, "Query": search, "Action": "/shelves/" + strconv.FormatInt(shelf.ID, 10), "ShelfMemberships": memberships, "ViewingShelfID": shelf.ID, "Locations": locations, "FavoritesShelfID": favoritesShelfID, "EditableShelfCount": len(shelves), "RecentShelves": recentShelves, "ShelfDownloadFormat": "epub", "ShelfDownloadBooks": books, "ProviderSort": true, "Total": total}
 	mergeInto(data, base)
 	render(w, "library.html", data)
+}
+
+func cachedCoverURL(provider string, item users.ConnectionItem) string {
+	if item.CoverPath == "" {
+		return ""
+	}
+	return "/cover?" + url.Values{
+		"provider": {provider},
+		"shelf":    {item.RemoteShelfKey},
+		"item":     {item.ExternalID},
+	}.Encode()
 }
 
 // connectionDisplayTitle removes a trailing Goodreads-style series marker
@@ -458,6 +469,16 @@ func (s *Server) Cover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, s.Covers.Path(book.CoverPath))
+}
+
+func (s *Server) CachedCover(w http.ResponseWriter, r *http.Request) {
+	username, _ := auth.UsernameFromContext(r.Context())
+	coverPath, err := s.Users.ConnectionCoverPath(username, r.URL.Query().Get("provider"), r.URL.Query().Get("shelf"), r.URL.Query().Get("item"))
+	if err != nil || coverPath == "" || filepath.Base(coverPath) != coverPath {
+		http.Redirect(w, r, "/static/placeholder-cover.svg", http.StatusFound)
+		return
+	}
+	http.ServeFile(w, r, s.Covers.Path(coverPath))
 }
 
 func (s *Server) DownloadEPUB(w http.ResponseWriter, r *http.Request) {
