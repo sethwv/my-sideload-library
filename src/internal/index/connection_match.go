@@ -3,6 +3,7 @@ package index
 import (
 	"database/sql"
 	"strings"
+	"unicode"
 )
 
 // FindConnectionBook resolves a provider item to a local EPUB-backed book.
@@ -30,13 +31,47 @@ func (d *DB) FindConnectionBook(provider, externalID, isbn, title, author string
 		}
 	}
 	err := d.sql.QueryRow(`SELECT id FROM books WHERE LOWER(title) = LOWER(?) AND LOWER(author) = LOWER(?) LIMIT 1`, strings.TrimSpace(title), strings.TrimSpace(author)).Scan(&id)
-	if err == sql.ErrNoRows {
-		return 0, nil
+	if err == nil || err != sql.ErrNoRows {
+		return id, err
 	}
-	return id, err
+	// Provider exports commonly disagree only on punctuation, apostrophe style,
+	// or whitespace. Require both normalized title and author to match exactly.
+	rows, err := d.sql.Query(`SELECT id, title, author FROM books`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	wantTitle, wantAuthor := normalizeConnectionText(title), normalizeConnectionText(author)
+	var normalizedID int64
+	for rows.Next() {
+		var candidateID int64
+		var candidateTitle, candidateAuthor string
+		if err := rows.Scan(&candidateID, &candidateTitle, &candidateAuthor); err != nil {
+			return 0, err
+		}
+		if wantTitle != "" && wantAuthor != "" && normalizeConnectionText(candidateTitle) == wantTitle && normalizeConnectionText(candidateAuthor) == wantAuthor {
+			if normalizedID != 0 {
+				// Multiple local books normalize to this provider identity. Leave it
+				// unresolved rather than selecting an arbitrary edition.
+				return 0, nil
+			}
+			normalizedID = candidateID
+		}
+	}
+	return normalizedID, rows.Err()
 }
 
 func normalizeConnectionISBN(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return strings.NewReplacer("-", "", " ", "").Replace(value)
+}
+
+func normalizeConnectionText(value string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(value) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
