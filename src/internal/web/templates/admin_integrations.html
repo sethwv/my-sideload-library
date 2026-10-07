@@ -10,13 +10,13 @@
 <h2>Queue</h2>
 <div class="table-wrap">
 <table>
-<tr><th>Status</th><th>Books</th><th></th></tr>
-<tr><td>Pending</td><td>{{.PendingTotal}}</td></tr>
-<tr><td class="queue-child">Library</td><td>{{.EnrichmentPending}}</td></tr>
-<tr><td class="queue-child">Connection</td><td>{{.ConnectionPending}}</td></tr>
-<tr><td>Done</td><td>{{.EnrichmentDone}}</td></tr>
-<tr><td>No match found</td><td>{{.EnrichmentNoMatch}}</td><td><form method="POST" action="/admin/integrations/enrichment-retry">{{template "csrf_field" .}}<input type="hidden" name="status" value="no_match"><button type="submit">Retry</button></form></td></tr>
-<tr><td>Errored</td><td>{{.EnrichmentErrored}}</td><td><form method="POST" action="/admin/integrations/enrichment-retry">{{template "csrf_field" .}}<input type="hidden" name="status" value="error"><button type="submit">Retry</button></form></td></tr>
+<tr><th>Status</th><th>Books</th><th>Action</th></tr>
+<tr><td>Pending</td><td>{{.PendingTotal}}</td><td></td></tr>
+<tr><td class="queue-child">Library</td><td>{{.EnrichmentPending}}</td><td></td></tr>
+<tr><td class="queue-child">Connection</td><td>{{.ConnectionPending}}</td><td></td></tr>
+<tr><td>Done</td><td>{{.EnrichmentDone}}</td><td></td></tr>
+<tr><td>No match found</td><td>{{.EnrichmentNoMatch}}</td><td class="task-action"><form method="POST" action="/admin/integrations/enrichment-retry" class="inline-form">{{template "csrf_field" .}}<input type="hidden" name="status" value="no_match"><button type="submit" class="task-run" aria-label="Retry no-match enrichment" title="Retry no-match enrichment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button></form></td></tr>
+<tr><td>Errored</td><td>{{.EnrichmentErrored}}</td><td class="task-action"><form method="POST" action="/admin/integrations/enrichment-retry" class="inline-form">{{template "csrf_field" .}}<input type="hidden" name="status" value="error"><button type="submit" class="task-run" aria-label="Retry failed enrichment" title="Retry failed enrichment"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button></form></td></tr>
 </table>
 </div>
 
