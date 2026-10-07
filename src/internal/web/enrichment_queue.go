@@ -39,6 +39,11 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
+		if promoted, err := s.promoteStoredConnectionMatches(); err != nil {
+			log.Printf("enrichment queue: promote stored connection matches: %v", err)
+		} else if promoted > 0 {
+			log.Printf("enrichment queue: promoted %d stored connection matches", promoted)
+		}
 
 		candidates, err := s.DB.BooksNeedingEnrichment(enrichmentBatchSize)
 		if err != nil {
@@ -203,22 +208,47 @@ func normalizeConnectionISBN(value string) string {
 // promoteEnrichedConnectionMatch lets a metadata match become a library match
 // without waiting for the user to re-import the provider snapshot.
 func (s *Server) promoteEnrichedConnectionMatch(c users.ConnectionEnrichmentCandidate, match hardcover.Match) {
-	bookID, err := s.DB.FindConnectionBook("hardcover", match.ID, c.ISBN, match.Title, strings.Join(match.Authors, ", "))
+	s.promoteConnectionMatch(c, match.ID, match.Title, strings.Join(match.Authors, ", "))
+}
+
+func (s *Server) promoteStoredConnectionMatches() (int, error) {
+	candidates, err := s.Users.ConnectionPromotionCandidates(enrichmentBatchSize)
+	if err != nil {
+		return 0, err
+	}
+	promoted := 0
+	for _, c := range candidates {
+		title, author := c.EnrichedTitle, c.EnrichedAuthor
+		if title == "" {
+			title = connectionDisplayTitle(c.Title)
+		}
+		if author == "" {
+			author = c.Author
+		}
+		if s.promoteConnectionMatch(c, c.HardcoverID, title, author) {
+			promoted++
+		}
+	}
+	return promoted, nil
+}
+
+func (s *Server) promoteConnectionMatch(c users.ConnectionEnrichmentCandidate, hardcoverID, title, author string) bool {
+	bookID, err := s.DB.FindConnectionBook("hardcover", hardcoverID, c.ISBN, title, author)
 	if err != nil {
 		log.Printf("enrichment queue: resolve enriched connection match: %v", err)
-		return
+		return false
 	}
 	if bookID == 0 {
-		return
+		return false
 	}
 	if err := s.Users.SetConnectionItemMatch(c.Username, c.Provider, c.RemoteShelfKey, c.ExternalID, bookID); err != nil {
 		log.Printf("enrichment queue: save enriched connection match: %v", err)
-		return
+		return false
 	}
 	shelves, err := s.Users.ConnectionShelves(c.Username, c.Provider)
 	if err != nil {
 		log.Printf("enrichment queue: load connection shelves: %v", err)
-		return
+		return false
 	}
 	for _, shelf := range shelves {
 		if shelf.RemoteKey != c.RemoteShelfKey || !shelf.Selected {
@@ -227,7 +257,7 @@ func (s *Server) promoteEnrichedConnectionMatch(c users.ConnectionEnrichmentCand
 		items, err := s.Users.ConnectionItems(c.Username, c.Provider, c.RemoteShelfKey)
 		if err != nil {
 			log.Printf("enrichment queue: load connection items: %v", err)
-			return
+			return false
 		}
 		bookIDs := make([]int64, 0, len(items))
 		for _, item := range items {
@@ -238,8 +268,9 @@ func (s *Server) promoteEnrichedConnectionMatch(c users.ConnectionEnrichmentCand
 		if _, err := s.DB.ReplaceIntegrationShelfBooks(c.Username, c.Provider, c.RemoteShelfKey, shelf.Name, bookIDs); err != nil {
 			log.Printf("enrichment queue: refresh integration shelf: %v", err)
 		}
-		return
+		return true
 	}
+	return true
 }
 
 // backfillHardcoverIDsFromChaptarr captures IDs already present in the local

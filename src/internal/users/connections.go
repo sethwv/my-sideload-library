@@ -37,6 +37,26 @@ type ConnectionItem struct {
 
 type ConnectionEnrichmentCandidate struct {
 	Username, Provider, RemoteShelfKey, ExternalID, Title, Author, ISBN string
+	HardcoverID, EnrichedTitle, EnrichedAuthor                          string
+}
+
+// ConnectionPromotionCandidates returns unresolved provider items whose
+// existing metadata can be matched locally without another API request.
+func (s *Store) ConnectionPromotionCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn, ci.hardcover_id, ci.enriched_title, ci.enriched_author FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var candidates []ConnectionEnrichmentCandidate
+	for rows.Next() {
+		var c ConnectionEnrichmentCandidate
+		if err := rows.Scan(&c.Username, &c.Provider, &c.RemoteShelfKey, &c.ExternalID, &c.Title, &c.Author, &c.ISBN, &c.HardcoverID, &c.EnrichedTitle, &c.EnrichedAuthor); err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, c)
+	}
+	return candidates, rows.Err()
 }
 
 func (s *Store) connectionUserID(username string) (int64, error) {
