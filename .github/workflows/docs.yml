@@ -385,7 +385,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           pattern: docs-status-*
           path: statuses
@@ -418,12 +418,12 @@ jobs:
           git clone --depth 1 --branch docs
           "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" previous-docs
           || true
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           pattern: docs-*
           path: incoming
           merge-multiple: true
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           pattern: docs-status-*
           path: statuses
