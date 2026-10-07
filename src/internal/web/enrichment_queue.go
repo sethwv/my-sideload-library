@@ -16,9 +16,8 @@ const idlePollInterval = 30 * time.Second
 
 const enrichmentBatchSize = 200
 
-// RunEnrichmentQueue processes candidates in a fixed Chaptarr-then-Hardcover
-// order. The Chaptarr snapshot must be current before a candidate can fall
-// through to Hardcover.
+// RunEnrichmentQueue gives fresh Chaptarr path matches and provider-connected
+// items priority, then uses general Hardcover matching as fallback work.
 func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 	for {
 		select {
@@ -56,20 +55,26 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 
 		var chBooks []chaptarr.Book
 		var chaptarrRefreshedAt time.Time
+		var knownHardcoverMatches map[string]hardcover.Match
+		var knownHardcoverDetails map[string]hardcover.Detail
+		knownHardcoverLookedUp := false
 		if s.Chaptarr.Enabled() {
 			chBooks, chaptarrRefreshedAt = s.Chaptarr.CachedBooks()
 			if len(chBooks) > 0 {
 				s.backfillHardcoverIDsFromChaptarr(chBooks)
 			}
 			if chaptarrRefreshedAt.IsZero() || !chaptarrRefreshedAt.Add(chaptarr.DefaultCacheTTL).After(time.Now()) {
-				// The scheduler owns catalog crawls. A stale snapshot cannot
-				// concede candidates to Hardcover before Chaptarr checks them.
-				sleepOrDone(ctx, idlePollInterval)
-				continue
+				// A stale catalog only disables path matching. It must not block
+				// connected items or otherwise eligible Hardcover work.
+				chBooks = nil
 			}
+		}
+		if s.Hardcover.Enabled() && chBooks != nil {
+			knownHardcoverMatches, knownHardcoverDetails, knownHardcoverLookedUp = s.batchChaptarrHardcoverLookups(ctx, candidates, chBooks)
 		}
 
 		processedAny := false
+		// Handle deterministic Chaptarr paths before generic matching.
 		for _, c := range candidates {
 			select {
 			case <-ctx.Done():
@@ -77,25 +82,32 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 			default:
 			}
 
-			if s.Chaptarr.Enabled() && !c.AddedAt.Before(chaptarrRefreshedAt.Truncate(time.Second)) {
+			if chBooks == nil || !c.AddedAt.Before(chaptarrRefreshedAt.Truncate(time.Second)) {
 				// This file arrived after the snapshot and waits for its refresh.
 				continue
 			}
-			if s.processChaptarrMatch(ctx, c, chBooks, overwriteCover) {
+			if s.processChaptarrMatch(ctx, c, chBooks, overwriteCover, knownHardcoverMatches, knownHardcoverDetails, knownHardcoverLookedUp) {
 				processedAny = true
-				continue
-			}
-			if chBooks != nil {
+			} else {
 				if err := s.DB.SetChaptarrStatus(c.ID, "no_match"); err != nil {
 					log.Printf("enrichment queue: mark chaptarr no_match failed for book %d: %v", c.ID, err)
 				}
 			}
-			if s.processHardcoverMatch(ctx, c, overwriteCover) {
+		}
+		// Connected items are independent of Chaptarr and cannot sit behind a
+		// large backlog of generic local candidates.
+		for _, c := range connectionCandidates {
+			if s.processConnectionHardcoverMatch(ctx, c) {
 				processedAny = true
 			}
 		}
-		for _, c := range connectionCandidates {
-			if s.processConnectionHardcoverMatch(ctx, c) {
+		for _, c := range candidates {
+			if chBooks != nil && c.AddedAt.Before(chaptarrRefreshedAt.Truncate(time.Second)) {
+				if _, matched := chaptarr.MatchByPath(chBooks, c.FilePath); matched {
+					continue
+				}
+			}
+			if s.processHardcoverMatch(ctx, c, overwriteCover) {
 				processedAny = true
 			}
 		}
@@ -113,6 +125,9 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	matches, err := s.Hardcover.Search(ctx, c.Title, c.Author, c.ISBN)
 	if err != nil {
 		log.Printf("enrichment queue: connection search failed for %s/%s: %v", c.Provider, c.ExternalID, err)
+		if hardcover.Retryable(err) {
+			return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
+		}
 		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
 	}
 	best, ok := connectionHardcoverMatch(matches, c.ISBN, c.Title, c.Author)
@@ -122,6 +137,9 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	detail, err := s.Hardcover.Detail(ctx, best.ID)
 	if err != nil {
 		log.Printf("enrichment queue: connection detail failed for %s/%s: %v", c.Provider, c.ExternalID, err)
+		if hardcover.Retryable(err) {
+			return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
+		}
 	}
 	if err := s.Users.SetConnectionItemEnrichment(c, best.ID, best.Title, strings.Join(best.Authors, ", "), detail.Image, "done"); err != nil {
 		log.Printf("enrichment queue: save connection enrichment: %v", err)
@@ -129,6 +147,27 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	}
 	s.promoteEnrichedConnectionMatch(c, best)
 	return true
+}
+
+// batchChaptarrHardcoverLookups resolves IDs supplied by Chaptarr together,
+// avoiding one Hardcover request per candidate when the IDs are already known.
+func (s *Server) batchChaptarrHardcoverLookups(ctx context.Context, candidates []index.EnrichmentCandidate, chBooks []chaptarr.Book) (map[string]hardcover.Match, map[string]hardcover.Detail, bool) {
+	ids := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		match, ok := chaptarr.MatchByPath(chBooks, candidate.FilePath)
+		if ok && match.HardcoverID != "" {
+			ids = append(ids, match.HardcoverID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil, true
+	}
+	matches, details, err := s.Hardcover.GetByIDs(ctx, ids)
+	if err != nil {
+		log.Printf("enrichment queue: batch hardcover lookup failed: %v", err)
+		return nil, nil, false
+	}
+	return matches, details, true
 }
 
 func connectionHardcoverMatch(matches []hardcover.Match, isbn, title, author string) (hardcover.Match, bool) {
@@ -211,7 +250,7 @@ func (s *Server) backfillHardcoverIDsFromChaptarr(chBooks []chaptarr.Book) {
 	}
 }
 
-func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCandidate, chBooks []chaptarr.Book, overwriteCover bool) bool {
+func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCandidate, chBooks []chaptarr.Book, overwriteCover bool, knownHardcoverMatches map[string]hardcover.Match, knownHardcoverDetails map[string]hardcover.Detail, knownHardcoverLookedUp bool) bool {
 	if !s.Chaptarr.Enabled() || chBooks == nil {
 		return false
 	}
@@ -223,7 +262,10 @@ func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCan
 	var hc hardcover.Match
 	var hcDetail hardcover.Detail
 	if s.Hardcover.Enabled() && match.HardcoverID != "" {
-		if m, d, err := s.Hardcover.GetByID(ctx, match.HardcoverID); err != nil {
+		if knownHardcoverLookedUp {
+			hc = knownHardcoverMatches[match.HardcoverID]
+			hcDetail = knownHardcoverDetails[match.HardcoverID]
+		} else if m, d, err := s.Hardcover.GetByID(ctx, match.HardcoverID); err != nil {
 			log.Printf("enrichment queue: hardcover daisy-chain lookup failed for book %d: %v", c.ID, err)
 		} else {
 			hc, hcDetail = m, d
@@ -266,7 +308,13 @@ func (s *Server) processHardcoverMatch(ctx context.Context, c index.EnrichmentCa
 	matches, err := s.Hardcover.Search(ctx, c.Title, c.Author, c.Identifier)
 	if err != nil {
 		log.Printf("enrichment queue: search failed for book %d: %v", c.ID, err)
-		if err := s.DB.SetEnrichmentStatus(c.ID, "error"); err != nil {
+		if hardcover.Retryable(err) {
+			if err := s.DB.SetEnrichmentRetry(c.ID); err != nil {
+				log.Printf("enrichment queue: defer retry failed for book %d: %v", c.ID, err)
+			}
+			return true
+		}
+		if err := s.DB.SetEnrichmentRetry(c.ID); err != nil {
 			log.Printf("enrichment queue: mark error failed for book %d: %v", c.ID, err)
 		}
 		if err := s.DB.SetHardcoverStatus(c.ID, "error"); err != nil {
@@ -288,6 +336,12 @@ func (s *Server) processHardcoverMatch(ctx context.Context, c index.EnrichmentCa
 	var detail hardcover.Detail
 	if d, err := s.Hardcover.Detail(ctx, best.ID); err != nil {
 		log.Printf("enrichment queue: detail lookup failed for book %d: %v", c.ID, err)
+		if hardcover.Retryable(err) {
+			if err := s.DB.SetEnrichmentRetry(c.ID); err != nil {
+				log.Printf("enrichment queue: defer retry failed for book %d: %v", c.ID, err)
+			}
+			return true
+		}
 	} else {
 		detail = d
 	}

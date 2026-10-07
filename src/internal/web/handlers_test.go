@@ -83,6 +83,18 @@ func addTestTaskManager(t *testing.T, server *Server) {
 	server.Tasks.Register(tasks.Task{Key: "rescan", Name: "Rescan library", Kind: tasks.KindJob, Runnable: true}, func(context.Context) error { return nil })
 }
 
+func TestConnectionDisplayTitleStripsSeriesMarker(t *testing.T) {
+	for _, test := range []struct{ title, want string }{
+		{"The Will and the Wilds (Ironbound, #1)", "The Will and the Wilds"},
+		{"The Two Towers (The Lord of the Rings, #2)", "The Two Towers"},
+		{"A Title (Revised Edition)", "A Title (Revised Edition)"},
+	} {
+		if got := connectionDisplayTitle(test.title); got != test.want {
+			t.Errorf("connectionDisplayTitle(%q) = %q, want %q", test.title, got, test.want)
+		}
+	}
+}
+
 func TestServerRescanQueuesTask(t *testing.T) {
 	server := newTestServer(t)
 	addTestTaskManager(t, server)
@@ -183,6 +195,43 @@ func addTestBook(t *testing.T, db *index.DB) int64 {
 		t.Fatalf("indexed books = %d, want 1", len(books))
 	}
 	return books[0].ID
+}
+
+func TestConnectedShelfUsesLibraryControlsAndGhostCards(t *testing.T) {
+	server := newAccountTestServer(t)
+	server.PageSize = 1
+	if err := server.Users.Create("reader", "password", users.RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Users.ReplaceConnectionSnapshot("reader", "goodreads", []users.ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []users.ConnectionItem{
+		{RemoteShelfKey: "read", ExternalID: "first", Title: "First missing", Author: "Author", SourcePosition: 0},
+		{RemoteShelfKey: "read", ExternalID: "second", Title: "Second missing", Author: "Author", SourcePosition: 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Users.SetConnectionItemEnrichment(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "second"}, "", "", "", "https://covers.example/second.jpg", "not-found"); err != nil {
+		t.Fatal(err)
+	}
+	shelfID, err := server.DB.ReplaceIntegrationShelfBooks("reader", "goodreads", "read", "Goodreads: Read", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := authenticatedRequest(t, server, http.MethodGet, "/shelves/"+strconv.FormatInt(shelfID, 10)+"?q=second", "reader", nil)
+	req.SetPathValue("id", strconv.FormatInt(shelfID, 10))
+	recorder := httptest.NewRecorder()
+	server.Auth.RequireAuth(http.HandlerFunc(server.ShelfHandler)).ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	body := recorder.Body.String()
+	for _, want := range []string{"Provider order", "Second missing", "connected-ghost", "MISSING", "https://covers.example/second.jpg"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("connected shelf missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, ">Settings</button>") {
+		t.Error("connected shelf rendered a settings action")
+	}
 }
 
 func TestLoginSubmit(t *testing.T) {

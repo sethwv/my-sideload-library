@@ -70,8 +70,14 @@
 
 {{define "book_cards"}}
 <div class="grid">
-{{range .Books}}
+{{range .BookCards}}
 {{$book := .}}
+{{if .Ghost}}
+<div class="card connected-ghost" aria-disabled="true">
+  <div class="cover-wrap">{{if .CoverURL}}<img class="cover" src="{{.CoverURL}}" alt="" loading="lazy">{{else}}<div class="cover connected-placeholder-cover"></div>{{end}}<div class="card-cover-title"><div class="card-title">{{.Title}}</div></div></div>
+  <div class="card-body has-footer"><div class="card-footer">{{if .Author}}<div class="card-byline"><div class="card-author">{{.Author}}</div></div>{{end}}<div class="card-date"><strong class="connected-missing">MISSING</strong></div></div></div>
+</div>
+{{else}}
 <div class="card" id="card-{{.ID}}">
   <div class="cover-wrap">
     <a class="cover-link" href="{{withQueryParam $.CurrentURL "book" .ID}}" onclick="return openModal('book-{{.ID}}');"><img class="cover" src="/covers/{{.ID}}" alt="{{.Title}} cover" loading="lazy"><div class="card-cover-title"><div class="card-title">{{.Title}}</div></div></a>
@@ -139,7 +145,7 @@
     </ul>
   </div>
 </div>
-{{end}}
+{{end}}{{end}}
 </div>
 {{end}}
 

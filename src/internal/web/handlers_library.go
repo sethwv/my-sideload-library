@@ -40,6 +40,12 @@ type bookListParams struct {
 	manageShelf    bool
 }
 
+type bookCard struct {
+	index.Book
+	Ghost    bool
+	CoverURL string
+}
+
 func (s *Server) hideMatchFilter() index.Filter {
 	settings, err := s.Users.GetIntegrationSettings()
 	if err != nil {
@@ -95,6 +101,10 @@ func (s *Server) renderBookList(w http.ResponseWriter, r *http.Request, p bookLi
 		http.Error(w, "failed to load library", http.StatusInternalServerError)
 		return
 	}
+	s.renderBookListPage(w, r, p, sortParam, dir, page, totalPages, pages, search, books, total)
+}
+
+func (s *Server) renderBookListPage(w http.ResponseWriter, r *http.Request, p bookListParams, sortParam, dir string, page, totalPages int, pages []int, search string, books []index.Book, total int) {
 	base, shelves, err := s.baseData(r)
 	if err != nil {
 		http.Error(w, "failed to load shelves", http.StatusInternalServerError)
@@ -106,7 +116,7 @@ func (s *Server) renderBookList(w http.ResponseWriter, r *http.Request, p bookLi
 		if base["KepubEnabled"].(bool) {
 			downloadFormat = "kepub"
 		}
-		switch q.Get("download") {
+		switch r.URL.Query().Get("download") {
 		case "epub":
 			downloadFormat = "epub"
 		case "kepub":
@@ -153,10 +163,14 @@ func (s *Server) renderBookList(w http.ResponseWriter, r *http.Request, p bookLi
 		locations[book.ID] = append([]index.Location{{LibraryRoot: book.LibraryRoot, FilePath: book.FilePath}}, locations[book.ID]...)
 	}
 	toggleDir := "desc"
-	if descending {
+	if dir == "desc" {
 		toggleDir = "asc"
 	}
-	data := map[string]any{"Title": p.heading, "Heading": p.heading, "Books": books, "Sort": sortParam, "Dir": dir, "ToggleDir": toggleDir, "Page": page, "PrevPage": page - 1, "NextPage": page + 1, "HasNext": page < totalPages, "TotalPages": totalPages, "Pages": pages, "Query": search, "Action": p.action, "Name": p.name, "ShelfMemberships": memberships, "ViewingShelfID": p.viewingShelfID, "ManageViewingShelf": p.manageShelf, "Locations": locations, "FavoritesShelfID": favoritesShelfID, "EditableShelfCount": len(shelves), "RecentShelves": recentShelves, "ShelfDownloadFormat": downloadFormat, "ShelfDownloadBooks": shelfDownloadBooks}
+	cards := make([]bookCard, len(books))
+	for i, book := range books {
+		cards[i].Book = book
+	}
+	data := map[string]any{"Title": p.heading, "Heading": p.heading, "Books": books, "BookCards": cards, "Sort": sortParam, "Dir": dir, "ToggleDir": toggleDir, "Page": page, "PrevPage": page - 1, "NextPage": page + 1, "HasNext": page < totalPages, "TotalPages": totalPages, "Pages": pages, "Query": search, "Action": p.action, "Name": p.name, "ShelfMemberships": memberships, "ViewingShelfID": p.viewingShelfID, "ManageViewingShelf": p.manageShelf, "Locations": locations, "FavoritesShelfID": favoritesShelfID, "EditableShelfCount": len(shelves), "RecentShelves": recentShelves, "ShelfDownloadFormat": downloadFormat, "ShelfDownloadBooks": shelfDownloadBooks, "Total": total}
 	mergeInto(data, base)
 	render(w, "library.html", data)
 }
@@ -223,49 +237,124 @@ func (s *Server) ShelfHandler(w http.ResponseWriter, r *http.Request) {
 	s.renderBookList(w, r, bookListParams{action: "/shelves/" + strconv.FormatInt(id, 10), filter: index.Filter{ShelfID: id}, heading: shelf.Name, defaultSort: index.SortTitle, viewingShelfID: id, manageShelf: manageShelf})
 }
 
-type connectedShelfItem struct {
-	Title, Author, CoverURL string
-	Book                    *index.Book
-}
-
 func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, shelf *index.ShelfAccess) {
 	username, _ := auth.UsernameFromContext(r.Context())
-	items, err := s.Users.ConnectionItems(username, shelf.Provider, shelf.RemoteKey)
+	q := r.URL.Query()
+	sort := q.Get("sort")
+	if sort != "provider" && sort != "title" && sort != "author" && sort != "added" {
+		sort = "provider"
+	}
+	dir := q.Get("dir")
+	if dir != "asc" && dir != "desc" {
+		dir = "asc"
+	}
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize := s.PageSize
+	if pageSize < 1 {
+		pageSize = 48
+	}
+	search := strings.TrimSpace(q.Get("q"))
+	total, err := s.Users.CountConnectionItems(username, shelf.Provider, shelf.RemoteKey, search)
 	if err != nil {
 		http.Error(w, "failed to load connected shelf", http.StatusInternalServerError)
 		return
 	}
-	view := make([]connectedShelfItem, 0, len(items))
-	for _, item := range items {
-		entry := connectedShelfItem{Title: item.Title, Author: item.Author}
-		if item.LocalBookID != 0 {
-			entry.Book, _ = s.DB.Get(item.LocalBookID)
-		} else {
-			if item.EnrichedTitle != "" {
-				entry.Title = item.EnrichedTitle
-			}
-			if item.EnrichedAuthor != "" {
-				entry.Author = item.EnrichedAuthor
-			}
-			entry.CoverURL = item.CoverURL
-		}
-		view = append(view, entry)
+	totalPages := (total + pageSize - 1) / pageSize
+	if totalPages < 1 {
+		totalPages = 1
 	}
-	base, _, err := s.baseData(r)
+	if page > totalPages {
+		page = totalPages
+	}
+	items, err := s.Users.ConnectionItemsPage(username, shelf.Provider, shelf.RemoteKey, search, sort, dir == "desc", page, pageSize)
+	if err != nil {
+		http.Error(w, "failed to load connected shelf", http.StatusInternalServerError)
+		return
+	}
+	books := make([]index.Book, 0, len(items))
+	cards := make([]bookCard, 0, len(items))
+	for _, item := range items {
+		if item.LocalBookID != 0 {
+			book, err := s.DB.Get(item.LocalBookID)
+			if err != nil {
+				http.Error(w, "failed to load connected shelf", http.StatusInternalServerError)
+				return
+			}
+			if book != nil {
+				books = append(books, *book)
+				cards = append(cards, bookCard{Book: *book})
+				continue
+			}
+		}
+		title, author := connectionDisplayTitle(item.Title), item.Author
+		if item.EnrichedTitle != "" {
+			title = connectionDisplayTitle(item.EnrichedTitle)
+		}
+		if item.EnrichedAuthor != "" {
+			author = item.EnrichedAuthor
+		}
+		cards = append(cards, bookCard{Book: index.Book{Title: title, Author: author, AddedAt: item.AddedAt}, Ghost: true, CoverURL: item.CoverURL})
+	}
+	pages := make([]int, totalPages)
+	for i := range pages {
+		pages[i] = i + 1
+	}
+	base, shelves, err := s.baseData(r)
 	if err != nil {
 		http.Error(w, "failed to load page", http.StatusInternalServerError)
 		return
 	}
-	hasDownloads := false
-	for _, item := range view {
-		if item.Book != nil {
-			hasDownloads = true
-			break
+	bookIDs := make([]int64, len(books))
+	for i, book := range books {
+		bookIDs[i] = book.ID
+	}
+	memberships, err := s.DB.ShelfMemberships(username, bookIDs)
+	if err != nil {
+		http.Error(w, "failed to load shelves", http.StatusInternalServerError)
+		return
+	}
+	locations, err := s.DB.LocationsForBooks(bookIDs)
+	if err != nil {
+		http.Error(w, "failed to load library", http.StatusInternalServerError)
+		return
+	}
+	for _, book := range books {
+		locations[book.ID] = append([]index.Location{{LibraryRoot: book.LibraryRoot, FilePath: book.FilePath}}, locations[book.ID]...)
+	}
+	var favoritesShelfID int64
+	for _, candidate := range shelves {
+		if candidate.IsSystem {
+			favoritesShelfID = candidate.ID
 		}
 	}
-	data := map[string]any{"Title": shelf.Name, "Shelf": shelf, "Items": view, "HasDownloads": hasDownloads}
+	recentShelves := make(map[int64]*index.Shelf)
+	for _, book := range books {
+		recentShelves[book.ID], _ = s.DB.RecentShelf(username, book.ID)
+	}
+	toggleDir := "desc"
+	if dir == "desc" {
+		toggleDir = "asc"
+	}
+	data := map[string]any{"Title": shelf.Name, "Heading": shelf.Name, "Books": books, "BookCards": cards, "Sort": sort, "Dir": dir, "ToggleDir": toggleDir, "Page": page, "PrevPage": page - 1, "NextPage": page + 1, "HasNext": page < totalPages, "TotalPages": totalPages, "Pages": pages, "Query": search, "Action": "/shelves/" + strconv.FormatInt(shelf.ID, 10), "ShelfMemberships": memberships, "ViewingShelfID": shelf.ID, "Locations": locations, "FavoritesShelfID": favoritesShelfID, "EditableShelfCount": len(shelves), "RecentShelves": recentShelves, "ShelfDownloadFormat": "epub", "ShelfDownloadBooks": books, "ProviderSort": true, "Total": total}
 	mergeInto(data, base)
-	render(w, "connected_shelf.html", data)
+	render(w, "library.html", data)
+}
+
+// connectionDisplayTitle removes a trailing Goodreads-style series marker
+// while leaving ordinary parenthesized titles untouched.
+func connectionDisplayTitle(title string) string {
+	title = strings.TrimSpace(title)
+	open := strings.LastIndex(title, " (")
+	if open < 0 || !strings.HasSuffix(title, ")") {
+		return title
+	}
+	if !strings.Contains(title[open+2:len(title)-1], "#") {
+		return title
+	}
+	return strings.TrimSpace(title[:open])
 }
 
 func (s *Server) ShelfToggle(w http.ResponseWriter, r *http.Request) {

@@ -109,6 +109,87 @@ func TestCreateAndCheckPassword(t *testing.T) {
 	}
 }
 
+func TestConnectionItemsPage_SearchPaginationAndProviderOrder(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.Create("reader", "password", RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	items := []ConnectionItem{
+		{RemoteShelfKey: "read", ExternalID: "third", Title: "Gamma", Author: "Author", SourcePosition: 2},
+		{RemoteShelfKey: "read", ExternalID: "first", Title: "Alpha", Author: "Author", SourcePosition: 0},
+		{RemoteShelfKey: "read", ExternalID: "second", Title: "Beta", Author: "Author", SourcePosition: 1},
+	}
+	if err := s.ReplaceConnectionSnapshot("reader", "goodreads", []ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, items); err != nil {
+		t.Fatal(err)
+	}
+
+	count, err := s.CountConnectionItems("reader", "goodreads", "read", "a")
+	if err != nil || count != 3 {
+		t.Fatalf("CountConnectionItems() = %d, %v; want 3, nil", count, err)
+	}
+	page, err := s.ConnectionItemsPage("reader", "goodreads", "read", "", "provider", false, 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page) != 1 || page[0].ExternalID != "second" {
+		t.Fatalf("provider page = %#v, want second item", page)
+	}
+	page, err = s.ConnectionItemsPage("reader", "goodreads", "read", "beta", "provider", false, 1, 10)
+	if err != nil || len(page) != 1 || page[0].ExternalID != "second" {
+		t.Fatalf("search page = %#v, %v; want Beta", page, err)
+	}
+}
+
+func TestReplaceConnectionSnapshot_PreservesEnrichmentAndRetryState(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.Create("reader", "password", RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	shelves := []ConnectionShelf{{RemoteKey: "read", Name: "Read"}}
+	items := []ConnectionItem{{RemoteShelfKey: "read", ExternalID: "book", Title: "Original", Author: "Author"}}
+	if err := s.ReplaceConnectionSnapshot("reader", "goodreads", shelves, items); err != nil {
+		t.Fatal(err)
+	}
+	candidate := ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "book"}
+	if err := s.SetConnectionItemEnrichment(candidate, "hc-1", "Enriched", "Better Author", "https://cover.example/book.jpg", "done"); err != nil {
+		t.Fatal(err)
+	}
+	items[0].Title = "Updated Source Title"
+	if err := s.ReplaceConnectionSnapshot("reader", "goodreads", shelves, items); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ConnectionItems("reader", "goodreads", "read")
+	if err != nil || len(got) != 1 {
+		t.Fatalf("ConnectionItems() = %#v, %v", got, err)
+	}
+	if got[0].Title != "Updated Source Title" || got[0].HardcoverID != "hc-1" || got[0].EnrichedTitle != "Enriched" || got[0].CoverURL != "https://cover.example/book.jpg" || got[0].EnrichmentStatus != "done" {
+		t.Errorf("snapshot item = %#v, want updated source fields and preserved enrichment", got[0])
+	}
+}
+
+func TestConnectionEnrichmentCandidates_RetriesErrorsOnlyWhenDue(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.Create("reader", "password", RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceConnectionSnapshot("reader", "goodreads", []ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []ConnectionItem{{RemoteShelfKey: "read", ExternalID: "book", Title: "Book"}}); err != nil {
+		t.Fatal(err)
+	}
+	candidate := ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "book"}
+	if err := s.SetConnectionItemEnrichment(candidate, "", "", "", "", "error"); err != nil {
+		t.Fatal(err)
+	}
+	if candidates, err := s.ConnectionEnrichmentCandidates(10); err != nil || len(candidates) != 0 {
+		t.Fatalf("backed off candidates = %#v, %v; want none", candidates, err)
+	}
+	if _, err := s.sql.Exec(`UPDATE connection_items SET enrichment_next_retry_at = 0 WHERE provider = 'goodreads' AND external_id = 'book'`); err != nil {
+		t.Fatal(err)
+	}
+	if candidates, err := s.ConnectionEnrichmentCandidates(10); err != nil || len(candidates) != 1 {
+		t.Fatalf("due retry candidates = %#v, %v; want one", candidates, err)
+	}
+}
+
 func TestSetEnabledRevokesAccessAndPreservesAccount(t *testing.T) {
 	s := openTestStore(t)
 	if err := s.Create("reader", "password", RoleMember, true, "reader@example.com"); err != nil {

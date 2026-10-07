@@ -1,12 +1,21 @@
 package web
 
 import (
+	"context"
+	"io"
 	"net"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
+	"github.com/sethwv/my-sideload-library/internal/index"
 )
+
+type enrichmentRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f enrichmentRoundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestConnectionHardcoverMatchPrefersExactISBN(t *testing.T) {
 	matches := []hardcover.Match{
@@ -153,5 +162,37 @@ func TestMergeChaptarrFields_ChaptarrOnlyWhenHardcoverDisabledOrNoMatch(t *testi
 	}
 	if f.Description != "" || f.Publisher != "" || f.Pages != 0 || f.ISBN != "" {
 		t.Errorf("f = %+v, want every Hardcover-only field left blank with no daisy-chained lookup", f)
+	}
+}
+
+func TestBatchChaptarrHardcoverLookups_UsesOneRequestForKnownIDs(t *testing.T) {
+	requests := 0
+	server := &Server{Hardcover: hardcover.NewWithTransport(true, "test-token", enrichmentRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		requests++
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(body), "BooksByIDs") {
+			t.Errorf("request = %s, want batch known-ID lookup", body)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"data":{"books":[{"id":12,"title":"One"},{"id":34,"title":"Two"}]}}`)),
+		}, nil
+	}))}
+	candidates := []index.EnrichmentCandidate{{FilePath: "/books/one.epub"}, {FilePath: "/books/two.epub"}}
+	chBooks := []chaptarr.Book{{Paths: []string{"/books/one.epub"}, HardcoverID: "12"}, {Paths: []string{"/books/two.epub"}, HardcoverID: "34"}}
+
+	matches, _, lookedUp := server.batchChaptarrHardcoverLookups(context.Background(), candidates, chBooks)
+	if !lookedUp {
+		t.Fatal("batch lookup failed")
+	}
+	if requests != 1 {
+		t.Errorf("requests = %d, want one batch request", requests)
+	}
+	if matches["12"].Title != "One" || matches["34"].Title != "Two" {
+		t.Errorf("matches = %+v, want both batch results", matches)
 	}
 }

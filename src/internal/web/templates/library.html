@@ -36,11 +36,12 @@
       <!-- <td><label for="sort">Sort by</label></td> -->
       <td>
         <select id="sort" name="sort" onchange="this.form.submit()">
+          {{if .ProviderSort}}<option value="provider" {{if eq .Sort "provider"}}selected{{end}}>Provider order</option>{{end}}
           <option value="title" {{if eq .Sort "title"}}selected{{end}}>Title</option>
           <option value="author" {{if eq .Sort "author"}}selected{{end}}>Author</option>
-          <option value="series" {{if eq .Sort "series"}}selected{{end}}>Series</option>
+          {{if not .ProviderSort}}<option value="series" {{if eq .Sort "series"}}selected{{end}}>Series</option>{{end}}
           <option value="added" {{if eq .Sort "added"}}selected{{end}}>Date added</option>
-          <option value="released" {{if eq .Sort "released"}}selected{{end}}>Release date</option>
+          {{if not .ProviderSort}}<option value="released" {{if eq .Sort "released"}}selected{{end}}>Release date</option>{{end}}
         </select>
       </td>
       <td>
@@ -59,7 +60,7 @@
   </table>
 </form>
 
-{{if not .Books}}
+{{if not .BookCards}}
 <p class="muted">No books found{{if .Query}} for "{{.Query}}"{{end}}.</p>
 {{end}}
 

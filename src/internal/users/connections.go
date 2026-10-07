@@ -98,7 +98,10 @@ func (s *Store) ReplaceConnectionSnapshot(username, provider string, shelves []C
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`DELETE FROM connection_items WHERE user_id = ? AND provider = ?`, userID, provider); err != nil {
+	if _, err := tx.Exec(`CREATE TEMP TABLE IF NOT EXISTS current_connection_snapshot (remote_shelf_key TEXT NOT NULL, external_id TEXT NOT NULL, PRIMARY KEY (remote_shelf_key, external_id))`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM current_connection_snapshot`); err != nil {
 		return err
 	}
 	seen := make(map[string]bool, len(shelves))
@@ -119,9 +122,16 @@ func (s *Store) ReplaceConnectionSnapshot(username, provider string, shelves []C
 		if !seen[item.RemoteShelfKey] {
 			return fmt.Errorf("connection item references unknown shelf")
 		}
-		if _, err := tx.Exec(`INSERT INTO connection_items (user_id, provider, remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, userID, provider, item.RemoteShelfKey, item.ExternalID, item.Title, item.Author, item.ISBN, item.AddedAt, item.SourcePosition, item.LocalBookID); err != nil {
+		if _, err := tx.Exec(`INSERT INTO current_connection_snapshot (remote_shelf_key, external_id) VALUES (?, ?)`, item.RemoteShelfKey, item.ExternalID); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(`INSERT INTO connection_items (user_id, provider, remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(user_id, provider, remote_shelf_key, external_id) DO UPDATE SET title = excluded.title, author = excluded.author, isbn = excluded.isbn, added_at = excluded.added_at, source_position = excluded.source_position`, userID, provider, item.RemoteShelfKey, item.ExternalID, item.Title, item.Author, item.ISBN, item.AddedAt, item.SourcePosition, item.LocalBookID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`DELETE FROM connection_items WHERE user_id = ? AND provider = ? AND NOT EXISTS (SELECT 1 FROM current_connection_snapshot s WHERE s.remote_shelf_key = connection_items.remote_shelf_key AND s.external_id = connection_items.external_id)`, userID, provider); err != nil {
+		return err
 	}
 	if len(seen) == 0 {
 		if _, err := tx.Exec(`DELETE FROM connection_shelves WHERE user_id = ? AND provider = ?`, userID, provider); err != nil {
@@ -181,11 +191,56 @@ func (s *Store) SetConnectionShelfSelection(username, provider, remoteKey string
 }
 
 func (s *Store) ConnectionItems(username, provider, remoteShelfKey string) ([]ConnectionItem, error) {
+	return s.ConnectionItemsPage(username, provider, remoteShelfKey, "", "provider", false, 1, 0)
+}
+
+// CountConnectionItems returns the number of provider entries matching search.
+func (s *Store) CountConnectionItems(username, provider, remoteShelfKey, search string) (int, error) {
+	userID, err := s.connectionUserID(username)
+	if err != nil {
+		return 0, err
+	}
+	search = strings.TrimSpace(search)
+	var count int
+	err = s.sql.QueryRow(`SELECT COUNT(*) FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND (? = '' OR title || ' ' || author || ' ' || enriched_title || ' ' || enriched_author LIKE '%' || ? || '%')`, userID, provider, remoteShelfKey, search, search).Scan(&count)
+	return count, err
+}
+
+// ConnectionItemsPage returns provider entries in provider order by default.
+// pageSize zero returns every matching entry for callers that need a snapshot.
+func (s *Store) ConnectionItemsPage(username, provider, remoteShelfKey, search, sort string, descending bool, page, pageSize int) ([]ConnectionItem, error) {
 	userID, err := s.connectionUserID(username)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.sql.Query(`SELECT remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id, hardcover_id, enriched_title, enriched_author, cover_url, enrichment_status FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? ORDER BY added_at DESC, source_position ASC`, userID, provider, remoteShelfKey)
+	search = strings.TrimSpace(search)
+	if page < 1 {
+		page = 1
+	}
+	order := "source_position ASC, external_id ASC"
+	if descending {
+		order = "source_position DESC, external_id DESC"
+	}
+	switch sort {
+	case "title":
+		order = "COALESCE(NULLIF(enriched_title, ''), title) COLLATE NOCASE"
+	case "author":
+		order = "COALESCE(NULLIF(enriched_author, ''), author) COLLATE NOCASE"
+	case "added":
+		order = "added_at"
+	}
+	if sort != "provider" && descending {
+		order += " DESC"
+	} else if sort != "provider" {
+		order += " ASC"
+	}
+	query := `SELECT remote_shelf_key, external_id, title, author, isbn, added_at, source_position, local_book_id, hardcover_id, enriched_title, enriched_author, cover_url, enrichment_status FROM connection_items WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND (? = '' OR title || ' ' || author || ' ' || enriched_title || ' ' || enriched_author LIKE '%' || ? || '%') ORDER BY ` + order
+	args := []any{userID, provider, remoteShelfKey, search, search}
+	if pageSize > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, pageSize, (page-1)*pageSize)
+	}
+	rows, err := s.sql.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +257,7 @@ func (s *Store) ConnectionItems(username, provider, remoteShelfKey string) ([]Co
 }
 
 func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
-	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND ci.enrichment_status = '' ORDER BY ci.added_at DESC, ci.source_position ASC LIMIT ?`, limit)
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND (ci.enrichment_status = '' OR (ci.enrichment_status = 'error' AND ci.enrichment_next_retry_at <= strftime('%s','now'))) ORDER BY CASE WHEN ci.enrichment_status = 'error' THEN ci.enrichment_next_retry_at ELSE 0 END, ci.added_at DESC, ci.source_position ASC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +278,11 @@ func (s *Store) SetConnectionItemEnrichment(c ConnectionEnrichmentCandidate, har
 	if err != nil {
 		return err
 	}
-	_, err = s.sql.Exec(`UPDATE connection_items SET hardcover_id = ?, enriched_title = ?, enriched_author = ?, cover_url = ?, enrichment_status = ? WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, hardcoverID, title, author, coverURL, status, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
+	if status == "error" {
+		_, err = s.sql.Exec(`UPDATE connection_items SET enrichment_status = 'error', enrichment_retry_count = enrichment_retry_count + 1, enrichment_next_retry_at = strftime('%s','now') + MIN(3600, 60 * (1 << MIN(6, enrichment_retry_count))) WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
+		return err
+	}
+	_, err = s.sql.Exec(`UPDATE connection_items SET hardcover_id = ?, enriched_title = ?, enriched_author = ?, cover_url = ?, enrichment_status = ?, enrichment_retry_count = 0, enrichment_next_retry_at = 0 WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, hardcoverID, title, author, coverURL, status, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
 	return err
 }
 

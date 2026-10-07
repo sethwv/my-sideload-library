@@ -954,4 +954,4 @@ html.theme-dark .appearance-mode button.is-selected { background: #3a3a3a; borde
 html.theme-dark .appearance-mode button:active { background: #383838; }
 .connected-ghost { opacity: 0.5; }
 .connected-placeholder-cover { background: #e4e4e4; }
-.connected-missing { display: block; margin-top: 0.4em; font-size: 0.8em; }
+.connected-missing { font-size: inherit; font-weight: 700; }

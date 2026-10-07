@@ -1,6 +1,8 @@
 package connections
 
 import (
+	"strings"
+
 	"github.com/sethwv/my-sideload-library/internal/index"
 	"github.com/sethwv/my-sideload-library/internal/users"
 )
@@ -60,9 +62,20 @@ func Reconcile(username, provider string, snapshot Snapshot, store *users.Store,
 				bookIDs = append(bookIDs, bookID)
 			}
 		}
-		if _, err := db.ReplaceIntegrationShelfBooks(username, provider, shelf.RemoteKey, shelf.Name, bookIDs); err != nil {
+		if _, err := db.ReplaceIntegrationShelfBooks(username, provider, shelf.RemoteKey, integrationShelfName(provider, shelf.Name), bookIDs); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func integrationShelfName(provider, name string) string {
+	providerName := provider
+	switch provider {
+	case "goodreads":
+		providerName = "Goodreads"
+	case "hardcover":
+		providerName = "Hardcover"
+	}
+	return strings.TrimSpace(providerName + ": " + name)
 }
