@@ -331,7 +331,7 @@ jobs:
           mkdir -p "artifact/${{ matrix.slug }}"
           && rsync -a --delete _site/ "artifact/${{ matrix.slug }}/"
           && printf '%s' "${{ matrix.sitePath }}" > "artifact/${{ matrix.slug }}/site-path.txt"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: docs-site-${{ matrix.slug }}
           path: artifact
@@ -357,7 +357,7 @@ jobs:
           && rsync -a --delete _site-root/ root-artifact/root/
       - name: Upload latest release root site
         if: matrix.ref == needs.discover.outputs.latest || (needs.discover.outputs.latest == '' && matrix.ref == 'main')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docs-root
           path: root-artifact
@@ -375,7 +375,7 @@ jobs:
           await writeFile("status/build-status.json", JSON.stringify({ ref: process.env.REF, slug: process.env.SLUG, category: process.env.CATEGORY, status: process.env.STATUS }));'
       - name: Upload version build status
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docs-status-${{ matrix.slug }}
           path: status
