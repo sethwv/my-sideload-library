@@ -101,16 +101,21 @@ async function runAction(page, context, action, scenarioID) {
       const button = page.locator(".modal-overlay:visible button.shelf-quick-action, .modal-overlay:visible button.shelf-toggle", { hasText: shelf }).first();
       const wasOn = await button.evaluate((element) => element.classList.contains("is-on"));
       await button.click();
-      await button.evaluate((element, state) => new Promise((resolve) => {
+      await button.evaluate((element, state) => new Promise((resolve, reject) => {
+        const deadline = Date.now() + 10_000;
         const waitForStateChange = () => {
-          if (element.classList.contains("is-on") !== state) {
+          if (element.classList.contains("is-on") !== state.wasOn) {
             resolve();
+            return;
+          }
+          if (Date.now() >= deadline) {
+            reject(new Error(`Shelf state did not change for ${state.scenarioID}: ${state.shelf}`));
             return;
           }
           window.setTimeout(waitForStateChange, 50);
         };
         waitForStateChange();
-      }), wasOn);
+      }), { wasOn, scenarioID, shelf });
       return;
     }
     case "create_shelf": {
