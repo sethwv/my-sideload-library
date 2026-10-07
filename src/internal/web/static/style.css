@@ -952,7 +952,6 @@ html.theme-dark .appearance-mode-label { color: #c4c4c4; }
 html.theme-dark .appearance-mode button { background: #222; border-color: #595959; }
 html.theme-dark .appearance-mode button.is-selected { background: #3a3a3a; border-color: #c4c4c4; }
 html.theme-dark .appearance-mode button:active { background: #383838; }
-.connected-ghost { opacity: 0.5; }
 .connected-placeholder-cover { background: #e4e4e4; }
 .connected-missing { font-size: inherit; font-weight: 700; }
 .queue-child { padding-left: 1.5em; }
