@@ -440,6 +440,16 @@ func (d *DB) ResetEnrichment() error {
 	return err
 }
 
+// RetryEnrichmentStatus requeues terminal enrichment results without clearing
+// metadata already supplied by other providers.
+func (d *DB) RetryEnrichmentStatus(status string) error {
+	if status != "no_match" && status != "error" {
+		return fmt.Errorf("invalid enrichment status %q", status)
+	}
+	_, err := d.sql.Exec(`UPDATE book_enrichment SET status = '', retry_count = 0, next_retry_at = 0, updated_at = strftime('%s','now') WHERE status = ?`, status)
+	return err
+}
+
 func nullIfEmpty(s string) any {
 	if s == "" {
 		return nil

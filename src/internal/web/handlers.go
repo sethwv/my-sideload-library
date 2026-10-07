@@ -771,7 +771,7 @@ func (s *Server) serverIntegrationsData(provider string) (map[string]any, error)
 		"HideNoChaptarrMatch":     settings.HideNoChaptarrMatch,
 		"EnrichmentPending":       enrichmentStats.Pending,
 		"ConnectionPending":       connectionPending,
-		"PendingTotal":             enrichmentStats.Pending + connectionPending,
+		"PendingTotal":            enrichmentStats.Pending + connectionPending,
 		"EnrichmentDone":          enrichmentStats.Done,
 		"EnrichmentNoMatch":       enrichmentStats.NoMatch,
 		"EnrichmentErrored":       enrichmentStats.Errored,
@@ -1028,6 +1028,15 @@ func (s *Server) ServerLibraryClear(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ServerEnrichmentReset(w http.ResponseWriter, r *http.Request) {
 	if err := s.DB.ResetEnrichment(); err != nil {
 		http.Error(w, "enrichment reset failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)
+}
+
+func (s *Server) ServerEnrichmentRetry(w http.ResponseWriter, r *http.Request) {
+	status := r.FormValue("status")
+	if err := s.DB.RetryEnrichmentStatus(status); err != nil {
+		http.Error(w, "enrichment retry failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)

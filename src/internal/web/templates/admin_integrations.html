@@ -10,13 +10,13 @@
 <h2>Queue</h2>
 <div class="table-wrap">
 <table>
-<tr><th>Status</th><th>Books</th></tr>
+<tr><th>Status</th><th>Books</th><th></th></tr>
 <tr><td>Pending</td><td>{{.PendingTotal}}</td></tr>
 <tr><td class="queue-child">Library</td><td>{{.EnrichmentPending}}</td></tr>
 <tr><td class="queue-child">Connection</td><td>{{.ConnectionPending}}</td></tr>
 <tr><td>Done</td><td>{{.EnrichmentDone}}</td></tr>
-<tr><td>No match found</td><td>{{.EnrichmentNoMatch}}</td></tr>
-<tr><td>Errored</td><td>{{.EnrichmentErrored}}</td></tr>
+<tr><td>No match found</td><td>{{.EnrichmentNoMatch}}</td><td><form method="POST" action="/admin/integrations/enrichment-retry">{{template "csrf_field" .}}<input type="hidden" name="status" value="no_match"><button type="submit">Retry</button></form></td></tr>
+<tr><td>Errored</td><td>{{.EnrichmentErrored}}</td><td><form method="POST" action="/admin/integrations/enrichment-retry">{{template "csrf_field" .}}<input type="hidden" name="status" value="error"><button type="submit">Retry</button></form></td></tr>
 </table>
 </div>
 

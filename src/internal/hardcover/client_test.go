@@ -229,6 +229,19 @@ func TestClient_HonorsRateLimitHeaders(t *testing.T) {
 	}
 }
 
+func TestClient_DoesNotPauseWhileRequestsRemain(t *testing.T) {
+	c := New(true, "test-token")
+	headers := make(http.Header)
+	headers.Set("RateLimit-Limit", "60")
+	headers.Set("RateLimit-Remaining", "59")
+	headers.Set("RateLimit-Reset", "86400")
+	c.updateRateLimit(headers)
+
+	if !c.nextAllowed.IsZero() {
+		t.Errorf("nextAllowed = %v, want no cooldown while requests remain", c.nextAllowed)
+	}
+}
+
 func TestRetryAfterNormalizesMillisecondEpochAndBoundsWait(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	headers := make(http.Header)

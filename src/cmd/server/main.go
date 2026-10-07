@@ -288,6 +288,7 @@ func main() {
 	mux.Handle("POST /admin/settings/smtp/test", authn.RequireManageServer(protectedPost(http.HandlerFunc(srv.ServerSMTPTest))))
 	mux.Handle("GET /admin/integrations", authn.RequireManageServer(http.HandlerFunc(srv.ServerIntegrations)))
 	mux.Handle("POST /admin/integrations/enrichment-reset", authn.RequireManageServer(protectedPost(http.HandlerFunc(srv.ServerEnrichmentReset))))
+	mux.Handle("POST /admin/integrations/enrichment-retry", authn.RequireManageServer(protectedPost(http.HandlerFunc(srv.ServerEnrichmentRetry))))
 	mux.Handle("POST /admin/integrations/hardcover", authn.RequireManageServer(protectedPost(http.HandlerFunc(srv.ServerIntegrationsHardcoverSave))))
 	mux.Handle("POST /admin/integrations/chaptarr", authn.RequireManageServer(protectedPost(http.HandlerFunc(srv.ServerIntegrationsChaptarrSave))))
 	mux.Handle("GET /account", authn.RequireFull(http.HandlerFunc(srv.Account)))

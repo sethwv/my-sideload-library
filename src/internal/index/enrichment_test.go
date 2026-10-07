@@ -173,6 +173,39 @@ func TestGetEnrichmentStats(t *testing.T) {
 	}
 }
 
+func TestRetryEnrichmentStatus(t *testing.T) {
+	libDir := t.TempDir()
+	writeTestEpub(t, filepath.Join(libDir, "b1.epub"), "Book One", "Amy Zed")
+	writeTestEpub(t, filepath.Join(libDir, "b2.epub"), "Book Two", "Amy Zed")
+	db := openTestDB(t)
+	if err := db.Scan([]string{libDir}, nil); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := db.BooksNeedingEnrichment(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetEnrichmentStatus(candidates[0].ID, "no_match"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetEnrichmentStatus(candidates[1].ID, "error"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RetryEnrichmentStatus("no_match"); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := db.GetEnrichmentStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Pending != 1 || stats.NoMatch != 0 || stats.Errored != 1 {
+		t.Errorf("stats after retry = %+v, want one pending no-match retry and one error", stats)
+	}
+	if err := db.RetryEnrichmentStatus("invalid"); err == nil {
+		t.Error("RetryEnrichmentStatus accepted an invalid status")
+	}
+}
+
 func TestApplyEnrichment_OverwritesTitleSeriesAndAlwaysFillableFields(t *testing.T) {
 	libDir := t.TempDir()
 	writeTestEpubWithSeries(t, filepath.Join(libDir, "b1.epub"), "Has Series Already", "Amy Zed", "Existing Saga", 2)

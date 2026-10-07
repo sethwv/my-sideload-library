@@ -272,14 +272,9 @@ func (c *Client) updateRateLimit(headers http.Header) {
 		c.tokens = min(c.tokens, float64(max(remaining, 0)))
 		if remaining <= 0 {
 			if retry := retryAfter(headers, now); retry > 0 {
+				log.Printf("hardcover: respecting exhausted rate-limit cooldown of %s", retry.Round(time.Second))
 				c.nextAllowed = now.Add(retry)
 			}
-		}
-	}
-	if retry := retryAfter(headers, now); retry > 0 {
-		log.Printf("hardcover: respecting server rate-limit cooldown of %s", retry.Round(time.Second))
-		if retryAt := now.Add(retry); retryAt.After(c.nextAllowed) {
-			c.nextAllowed = retryAt
 		}
 	}
 }
