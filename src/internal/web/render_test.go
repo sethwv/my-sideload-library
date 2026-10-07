@@ -85,6 +85,16 @@ func TestRenderConcurrentPages(t *testing.T) {
 	}
 }
 
+func TestFormatPublishedSpaceSeparatedTimestamp(t *testing.T) {
+	raw := "2006-01-24 00:00:00-08:00"
+	if got := formatPublished(raw); got != "01/24/2006" {
+		t.Errorf("formatPublished(%q) = %q, want 01/24/2006", raw, got)
+	}
+	if got := formatPublishedYear(raw); got != "2006" {
+		t.Errorf("formatPublishedYear(%q) = %q, want 2006", raw, got)
+	}
+}
+
 func TestRenderAdminIntegrationsTabsAndForms(t *testing.T) {
 	tests := []struct {
 		name           string

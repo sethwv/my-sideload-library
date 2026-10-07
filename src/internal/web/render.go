@@ -213,7 +213,7 @@ func formatPublished(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02", "2006-01", "2006"} {
+	for _, layout := range publishedDateLayouts {
 		if t, err := time.Parse(layout, raw); err == nil {
 			switch layout {
 			case "2006":
@@ -237,13 +237,15 @@ func formatPublishedYear(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	for _, layout := range []string{time.RFC3339, "2006-01-02", "2006-01", "2006"} {
+	for _, layout := range publishedDateLayouts {
 		if t, err := time.Parse(layout, raw); err == nil {
 			return t.Format("2006")
 		}
 	}
 	return raw
 }
+
+var publishedDateLayouts = []string{time.RFC3339, "2006-01-02 15:04:05Z07:00", "2006-01-02", "2006-01", "2006"}
 
 var (
 	templateBaseOnce sync.Once
