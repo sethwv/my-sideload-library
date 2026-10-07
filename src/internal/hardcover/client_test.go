@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -225,6 +226,19 @@ func TestClient_HonorsRateLimitHeaders(t *testing.T) {
 	}
 	if until := time.Until(c.nextAllowed); until < 4*time.Second {
 		t.Errorf("nextAllowed is only %v away, want about 5 seconds", until)
+	}
+}
+
+func TestRetryAfterNormalizesMillisecondEpochAndBoundsWait(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	headers := make(http.Header)
+	headers.Set("RateLimit-Reset", strconv.FormatInt(now.Add(5*time.Second).UnixMilli(), 10))
+	if got := retryAfter(headers, now); got != 5*time.Second {
+		t.Errorf("millisecond reset wait = %v, want 5s", got)
+	}
+	headers.Set("Retry-After", "86400")
+	if got := retryAfter(headers, now); got != maxRateLimitWait {
+		t.Errorf("bounded retry wait = %v, want %v", got, maxRateLimitWait)
 	}
 }
 

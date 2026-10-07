@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -50,6 +51,7 @@ type Client struct {
 const (
 	fallbackRequestsPerMinute = 60
 	fallbackBurst             = 10
+	maxRateLimitWait          = 5 * time.Minute
 )
 
 // RateLimitError reports a retryable Hardcover limit response. RetryAfter is
@@ -275,6 +277,7 @@ func (c *Client) updateRateLimit(headers http.Header) {
 		}
 	}
 	if retry := retryAfter(headers, now); retry > 0 {
+		log.Printf("hardcover: respecting server rate-limit cooldown of %s", retry.Round(time.Second))
 		if retryAt := now.Add(retry); retryAt.After(c.nextAllowed) {
 			c.nextAllowed = retryAt
 		}
@@ -293,10 +296,10 @@ func rateLimitInt(headers http.Header, names ...string) (int, bool) {
 func retryAfter(headers http.Header, now time.Time) time.Duration {
 	if value := strings.TrimSpace(headers.Get("Retry-After")); value != "" {
 		if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
-			return time.Duration(seconds) * time.Second
+			return boundedRateLimitWait(time.Duration(seconds) * time.Second)
 		}
 		if retryAt, err := http.ParseTime(value); err == nil && retryAt.After(now) {
-			return retryAt.Sub(now)
+			return boundedRateLimitWait(retryAt.Sub(now))
 		}
 	}
 	for _, name := range []string{"RateLimit-Reset", "X-RateLimit-Reset"} {
@@ -308,10 +311,20 @@ func retryAfter(headers http.Header, now time.Time) time.Duration {
 		if err != nil || seconds < 0 {
 			continue
 		}
-		if seconds > now.Unix() {
-			return time.Until(time.Unix(seconds, 0))
+		if seconds > now.Unix()*100 {
+			seconds /= 1000 // Some APIs return a Unix epoch in milliseconds.
 		}
-		return time.Duration(seconds) * time.Second
+		if seconds > now.Unix() {
+			return boundedRateLimitWait(time.Unix(seconds, 0).Sub(now))
+		}
+		return boundedRateLimitWait(time.Duration(seconds) * time.Second)
 	}
 	return 0
+}
+
+func boundedRateLimitWait(wait time.Duration) time.Duration {
+	if wait > maxRateLimitWait {
+		return maxRateLimitWait
+	}
+	return wait
 }

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -19,6 +20,13 @@ const enrichmentBatchSize = 200
 // RunEnrichmentQueue gives fresh Chaptarr path matches and provider-connected
 // items priority, then uses general Hardcover matching as fallback work.
 func (s *Server) RunEnrichmentQueue(ctx context.Context) {
+	lastState := ""
+	logState := func(state string) {
+		if state != lastState {
+			log.Printf("enrichment queue: %s", state)
+			lastState = state
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -27,6 +35,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		}
 
 		if !s.Hardcover.Enabled() && !s.Chaptarr.Enabled() {
+			logState("idle, no integrations are enabled")
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
@@ -42,6 +51,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 			log.Printf("enrichment queue: list connection candidates: %v", err)
 		}
 		if len(candidates) == 0 && len(connectionCandidates) == 0 {
+			logState("idle, no eligible candidates")
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
@@ -72,6 +82,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		if s.Hardcover.Enabled() && chBooks != nil {
 			knownHardcoverMatches, knownHardcoverDetails, knownHardcoverLookedUp = s.batchChaptarrHardcoverLookups(ctx, candidates, chBooks)
 		}
+		logState(fmt.Sprintf("processing %d library and %d connection candidates (hardcover=%t chaptarr_cache=%t)", len(candidates), len(connectionCandidates), s.Hardcover.Enabled(), chBooks != nil))
 
 		processedAny := false
 		// Handle deterministic Chaptarr paths before generic matching.
