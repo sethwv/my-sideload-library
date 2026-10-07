@@ -11,7 +11,9 @@
 <div class="table-wrap">
 <table>
 <tr><th>Status</th><th>Books</th></tr>
-<tr><td>Pending</td><td>{{.EnrichmentPending}}</td></tr>
+<tr><td>Pending</td><td>{{.PendingTotal}}</td></tr>
+<tr><td class="queue-child">Library</td><td>{{.EnrichmentPending}}</td></tr>
+<tr><td class="queue-child">Connection</td><td>{{.ConnectionPending}}</td></tr>
 <tr><td>Done</td><td>{{.EnrichmentDone}}</td></tr>
 <tr><td>No match found</td><td>{{.EnrichmentNoMatch}}</td></tr>
 <tr><td>Errored</td><td>{{.EnrichmentErrored}}</td></tr>

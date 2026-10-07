@@ -750,6 +750,10 @@ func (s *Server) serverIntegrationsData(provider string) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
+	connectionPending, err := s.Users.ConnectionEnrichmentPending()
+	if err != nil {
+		return nil, err
+	}
 
 	return map[string]any{
 		"Title":                   "Enhancement",
@@ -766,6 +770,8 @@ func (s *Server) serverIntegrationsData(provider string) (map[string]any, error)
 		"ChaptarrConfigured":      settings.ChaptarrAPIKey != "",
 		"HideNoChaptarrMatch":     settings.HideNoChaptarrMatch,
 		"EnrichmentPending":       enrichmentStats.Pending,
+		"ConnectionPending":       connectionPending,
+		"PendingTotal":             enrichmentStats.Pending + connectionPending,
 		"EnrichmentDone":          enrichmentStats.Done,
 		"EnrichmentNoMatch":       enrichmentStats.NoMatch,
 		"EnrichmentErrored":       enrichmentStats.Errored,

@@ -188,6 +188,9 @@ func TestConnectionEnrichmentCandidates_RetriesErrorsOnlyWhenDue(t *testing.T) {
 	if candidates, err := s.ConnectionEnrichmentCandidates(10); err != nil || len(candidates) != 1 {
 		t.Fatalf("due retry candidates = %#v, %v; want one", candidates, err)
 	}
+	if pending, err := s.ConnectionEnrichmentPending(); err != nil || pending != 1 {
+		t.Fatalf("ConnectionEnrichmentPending() = %d, %v; want 1, nil", pending, err)
+	}
 }
 
 func TestSetEnabledRevokesAccessAndPreservesAccount(t *testing.T) {

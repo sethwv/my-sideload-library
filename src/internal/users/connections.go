@@ -273,6 +273,14 @@ func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmen
 	return candidates, rows.Err()
 }
 
+// ConnectionEnrichmentPending returns unresolved ghost items currently eligible
+// for the enrichment queue, including retries whose backoff has elapsed.
+func (s *Store) ConnectionEnrichmentPending() (int, error) {
+	var count int
+	err := s.sql.QueryRow(`SELECT COUNT(*) FROM connection_items WHERE local_book_id = 0 AND (enrichment_status = '' OR (enrichment_status = 'error' AND enrichment_next_retry_at <= strftime('%s','now')))`).Scan(&count)
+	return count, err
+}
+
 func (s *Store) SetConnectionItemEnrichment(c ConnectionEnrichmentCandidate, hardcoverID, title, author, coverURL, status string) error {
 	userID, err := s.connectionUserID(c.Username)
 	if err != nil {

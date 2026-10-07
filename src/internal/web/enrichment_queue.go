@@ -94,13 +94,8 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 				}
 			}
 		}
-		// Connected items are independent of Chaptarr and cannot sit behind a
-		// large backlog of generic local candidates.
-		for _, c := range connectionCandidates {
-			if s.processConnectionHardcoverMatch(ctx, c) {
-				processedAny = true
-			}
-		}
+		// Finish local-library work before connected ghosts so enhancements for
+		// EPUB-backed books are always prioritized.
 		for _, c := range candidates {
 			if chBooks != nil && c.AddedAt.Before(chaptarrRefreshedAt.Truncate(time.Second)) {
 				if _, matched := chaptarr.MatchByPath(chBooks, c.FilePath); matched {
@@ -108,6 +103,11 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 				}
 			}
 			if s.processHardcoverMatch(ctx, c, overwriteCover) {
+				processedAny = true
+			}
+		}
+		for _, c := range connectionCandidates {
+			if s.processConnectionHardcoverMatch(ctx, c) {
 				processedAny = true
 			}
 		}
