@@ -2,8 +2,10 @@ package hardcover
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -210,5 +212,45 @@ func TestGetByID_MissingBook(t *testing.T) {
 	}
 	if m.Title != "" || d.Publisher != "" {
 		t.Errorf("expected a zero Match/Detail for a missing book, got m=%+v d=%+v", m, d)
+	}
+}
+
+func TestGetByIDs_BatchesKnownIDs(t *testing.T) {
+	var variables struct {
+		IDs []int64 `json:"ids"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Query     string          `json:"query"`
+			Variables json.RawMessage `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(request.Query, "BooksByIDs") {
+			t.Errorf("query = %q, want batch query", request.Query)
+		}
+		if err := json.Unmarshal(request.Variables, &variables); err != nil {
+			t.Fatal(err)
+		}
+		w.Write([]byte(`{"data":{"books":[{"id":42,"title":"Mistborn","image":{"url":"https://covers.example/mistborn.jpg"},"default_physical_edition":{"publisher":{"name":"Tor"}}}]}}`))
+	}))
+	defer srv.Close()
+
+	c := New(true, "test-token")
+	c.http = srv.Client()
+	overrideEndpointForTest(t, srv.URL)
+	matches, details, err := c.GetByIDs(context.Background(), []string{"42", "42", "99"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(variables.IDs) != 2 || variables.IDs[0] != 42 || variables.IDs[1] != 99 {
+		t.Errorf("ids = %v, want deduplicated [42 99]", variables.IDs)
+	}
+	if matches["42"].Title != "Mistborn" || details["42"].Publisher != "Tor" {
+		t.Errorf("batch result = %+v %+v", matches["42"], details["42"])
+	}
+	if _, ok := matches["99"]; ok {
+		t.Error("missing Hardcover ID should be omitted")
 	}
 }

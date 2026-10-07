@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -193,24 +194,56 @@ func TestDetail_MissingBook(t *testing.T) {
 	}
 }
 
-func TestClient_ThrottlesRequests(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"data":{"search":{"ids":[],"results":{"hits":[]}}}}`))
-	}))
-	defer srv.Close()
-
+func TestClient_UsesFallbackRateLimitWithBurst(t *testing.T) {
 	c := New(true, "test-token")
-	c.http = srv.Client()
-	overrideEndpointForTest(t, srv.URL)
+	for range fallbackBurst {
+		if err := c.throttle(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c.tokens > 0.01 {
+		t.Errorf("tokens = %v, want exhausted fallback burst", c.tokens)
+	}
+	if c.rate != float64(fallbackRequestsPerMinute)/60 {
+		t.Errorf("rate = %v, want 60/minute", c.rate)
+	}
+}
 
-	start := time.Now()
-	if _, err := c.Search(context.Background(), "a", "b", ""); err != nil {
-		t.Fatal(err)
+func TestClient_HonorsRateLimitHeaders(t *testing.T) {
+	c := New(true, "test-token")
+	headers := make(http.Header)
+	headers.Set("RateLimit-Limit", "30")
+	headers.Set("RateLimit-Remaining", "0")
+	headers.Set("RateLimit-Reset", "5")
+	c.updateRateLimit(headers)
+
+	if c.rate != 0.5 {
+		t.Errorf("rate = %v, want 0.5 requests/second", c.rate)
 	}
-	if _, err := c.Search(context.Background(), "c", "d", ""); err != nil {
-		t.Fatal(err)
+	if c.burst != 30 {
+		t.Errorf("burst = %v, want 30", c.burst)
 	}
-	if elapsed := time.Since(start); elapsed < minInterval {
-		t.Errorf("two calls took %v, want at least %v (rate-limit spacing)", elapsed, minInterval)
+	if until := time.Until(c.nextAllowed); until < 4*time.Second {
+		t.Errorf("nextAllowed is only %v away, want about 5 seconds", until)
+	}
+}
+
+func TestSearch_RateLimitErrorIsRetryable(t *testing.T) {
+	c := NewWithTransport(true, "test-token", roundTripFunc(func(*http.Request) (*http.Response, error) {
+		headers := make(http.Header)
+		headers.Set("Retry-After", "3")
+		return &http.Response{StatusCode: http.StatusTooManyRequests, Header: headers, Body: io.NopCloser(strings.NewReader("rate limited"))}, nil
+	}))
+
+	_, err := c.Search(context.Background(), "Mistborn", "", "")
+	var rateLimit *RateLimitError
+	if !errors.As(err, &rateLimit) {
+		t.Fatalf("error = %v, want RateLimitError", err)
+	}
+	if rateLimit.RetryAfter != 3*time.Second {
+		t.Errorf("RetryAfter = %v, want 3s", rateLimit.RetryAfter)
+	}
+	if !Retryable(err) {
+		t.Error("RateLimitError should be retryable")
 	}
 }

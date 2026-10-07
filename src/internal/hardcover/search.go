@@ -199,34 +199,37 @@ const getByIDQuery = `query BookByID($id: Int!) {
 }`
 
 type getByIDResponse struct {
-	BooksByPK *struct {
-		Title       string  `json:"title"`
-		Description string  `json:"description"`
-		Pages       int     `json:"pages"`
-		Rating      float64 `json:"rating"`
-		ReleaseDate string  `json:"release_date"`
-		CachedTags  struct {
-			Genre []struct {
-				Tag string `json:"tag"`
-			} `json:"Genre"`
-		} `json:"cached_tags"`
-		Image *struct {
-			URL string `json:"url"`
-		} `json:"image"`
-		DefaultPhysicalEdition *struct {
-			ISBN10    string `json:"isbn_10"`
-			ISBN13    string `json:"isbn_13"`
-			Publisher *struct {
-				Name string `json:"name"`
-			} `json:"publisher"`
-		} `json:"default_physical_edition"`
-		BookSeries []struct {
-			Position float64 `json:"position"`
-			Series   struct {
-				Name string `json:"name"`
-			} `json:"series"`
-		} `json:"book_series"`
-	} `json:"books_by_pk"`
+	BooksByPK *bookRecord `json:"books_by_pk"`
+}
+
+type bookRecord struct {
+	ID          int64   `json:"id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Pages       int     `json:"pages"`
+	Rating      float64 `json:"rating"`
+	ReleaseDate string  `json:"release_date"`
+	CachedTags  struct {
+		Genre []struct {
+			Tag string `json:"tag"`
+		} `json:"Genre"`
+	} `json:"cached_tags"`
+	Image *struct {
+		URL string `json:"url"`
+	} `json:"image"`
+	DefaultPhysicalEdition *struct {
+		ISBN10    string `json:"isbn_10"`
+		ISBN13    string `json:"isbn_13"`
+		Publisher *struct {
+			Name string `json:"name"`
+		} `json:"publisher"`
+	} `json:"default_physical_edition"`
+	BookSeries []struct {
+		Position float64 `json:"position"`
+		Series   struct {
+			Name string `json:"name"`
+		} `json:"series"`
+	} `json:"book_series"`
 }
 
 // GetByID fetches the full record for a known Hardcover book ID directly —
@@ -246,8 +249,10 @@ func (c *Client) GetByID(ctx context.Context, id string) (Match, Detail, error) 
 	if resp.BooksByPK == nil {
 		return Match{}, Detail{}, nil
 	}
-	b := resp.BooksByPK
+	return parseBookRecord(id, resp.BooksByPK)
+}
 
+func parseBookRecord(id string, b *bookRecord) (Match, Detail, error) {
 	m := Match{
 		ID:          id,
 		Title:       b.Title,
@@ -283,6 +288,62 @@ func (c *Client) GetByID(ctx context.Context, id string) (Match, Detail, error) 
 	}
 
 	return m, d, nil
+}
+
+const getByIDsQuery = `query BooksByIDs($ids: [Int!]!) {
+  books(where: {id: {_in: $ids}}) {
+    id
+    title
+    description
+    pages
+    rating
+    release_date
+    cached_tags
+    image { url }
+    default_physical_edition { isbn_10 isbn_13 publisher { name } }
+    book_series { position series { name } }
+  }
+}`
+
+// GetByIDs fetches multiple known Hardcover IDs in a single request. Missing
+// IDs are omitted from the result.
+func (c *Client) GetByIDs(ctx context.Context, ids []string) (map[string]Match, map[string]Detail, error) {
+	bookIDs := make([]int64, 0, len(ids))
+	seen := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		bookID, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return nil, nil, fmt.Errorf("hardcover: invalid book id %q: %w", id, err)
+		}
+		if !seen[bookID] {
+			seen[bookID] = true
+			bookIDs = append(bookIDs, bookID)
+		}
+	}
+	if len(bookIDs) == 0 {
+		return map[string]Match{}, map[string]Detail{}, nil
+	}
+	var resp struct {
+		Books []*bookRecord `json:"books"`
+	}
+	if err := c.do(ctx, getByIDsQuery, map[string]any{"ids": bookIDs}, &resp); err != nil {
+		return nil, nil, err
+	}
+	matches := make(map[string]Match, len(resp.Books))
+	details := make(map[string]Detail, len(resp.Books))
+	for _, book := range resp.Books {
+		if book == nil {
+			continue
+		}
+		id := strconv.FormatInt(book.ID, 10)
+		match, detail, err := parseBookRecord(id, book)
+		if err != nil {
+			return nil, nil, err
+		}
+		matches[id] = match
+		details[id] = detail
+	}
+	return matches, details, nil
 }
 
 // looksLikeISBNOrASIN is a loose shape check (digits/X for ISBN-10, all
