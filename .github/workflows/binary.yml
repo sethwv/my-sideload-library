@@ -100,7 +100,7 @@ jobs:
             dpkg-deb --root-owner-group --build "$package" "$artifact"
             rm -rf "$package"
           fi
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v6
         with:
           name: standalone-binary-${{ matrix.target }}
           path: dist/
