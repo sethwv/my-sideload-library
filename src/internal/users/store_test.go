@@ -191,6 +191,13 @@ func TestConnectionEnrichmentCandidates_RetriesErrorsOnlyWhenDue(t *testing.T) {
 	if pending, err := s.ConnectionEnrichmentPending(); err != nil || pending != 1 {
 		t.Fatalf("ConnectionEnrichmentPending() = %d, %v; want 1, nil", pending, err)
 	}
+	stats, err := s.ConnectionEnrichmentQueueStats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Pending != 1 || stats.UnmatchedLocal != 1 || stats.CoverCache != 0 {
+		t.Errorf("ConnectionEnrichmentQueueStats() = %#v, want pending=1 unmatched=1 coverCache=0", stats)
+	}
 }
 
 func TestSetEnabledRevokesAccessAndPreservesAccount(t *testing.T) {

@@ -28,6 +28,7 @@ const enrichmentWorkers = 4
 func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 	lastState := ""
 	logState := func(state string) {
+		s.setEnrichmentQueueState(state)
 		if state != lastState {
 			log.Printf("enrichment queue: %s", state)
 			lastState = state
@@ -40,15 +41,17 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		default:
 		}
 
-		if !s.Hardcover.Enabled() && !s.Chaptarr.Enabled() {
-			logState("idle, no integrations are enabled")
-			sleepOrDone(ctx, idlePollInterval)
-			continue
-		}
+		// Stored provider metadata can resolve against the local library without
+		// an active external integration, so always retry those matches first.
 		if promoted, err := s.promoteStoredConnectionMatches(); err != nil {
 			log.Printf("enrichment queue: promote stored connection matches: %v", err)
 		} else if promoted > 0 {
 			log.Printf("enrichment queue: promoted %d stored connection matches", promoted)
+		}
+		if !s.Hardcover.Enabled() && !s.Chaptarr.Enabled() {
+			logState("idle, no integrations are enabled")
+			sleepOrDone(ctx, idlePollInterval)
+			continue
 		}
 
 		candidates, err := s.DB.BooksNeedingEnrichment(enrichmentBatchSize)

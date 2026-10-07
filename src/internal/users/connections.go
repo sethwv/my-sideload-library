@@ -40,6 +40,13 @@ type ConnectionEnrichmentCandidate struct {
 	HardcoverID, EnrichedTitle, EnrichedAuthor, CoverURL                string
 }
 
+// ConnectionEnrichmentStats summarizes background work for provider shelves.
+type ConnectionEnrichmentStats struct {
+	Pending        int
+	UnmatchedLocal int
+	CoverCache     int
+}
+
 // ConnectionPromotionCandidates returns unresolved provider items whose
 // existing metadata can be matched locally without another API request.
 func (s *Store) ConnectionPromotionCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
@@ -346,6 +353,16 @@ func (s *Store) ConnectionEnrichmentPending() (int, error) {
 	var count int
 	err := s.sql.QueryRow(`SELECT COUNT(*) FROM connection_items WHERE local_book_id = 0 AND (enrichment_status = '' OR (enrichment_status = 'error' AND enrichment_next_retry_at <= strftime('%s','now')))`).Scan(&count)
 	return count, err
+}
+
+func (s *Store) ConnectionEnrichmentQueueStats() (ConnectionEnrichmentStats, error) {
+	var stats ConnectionEnrichmentStats
+	err := s.sql.QueryRow(`SELECT
+		COUNT(*) FILTER (WHERE local_book_id = 0 AND (enrichment_status = '' OR (enrichment_status = 'error' AND enrichment_next_retry_at <= strftime('%s','now')))),
+		COUNT(*) FILTER (WHERE local_book_id = 0),
+		COUNT(*) FILTER (WHERE local_book_id = 0 AND cover_url != '' AND cover_path = '' AND cover_cache_failed = 0)
+		FROM connection_items`).Scan(&stats.Pending, &stats.UnmatchedLocal, &stats.CoverCache)
+	return stats, err
 }
 
 func (s *Store) SetConnectionItemEnrichment(c ConnectionEnrichmentCandidate, hardcoverID, title, author, coverURL, status string) error {

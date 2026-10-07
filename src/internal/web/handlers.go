@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/auth"
@@ -38,6 +39,10 @@ type Server struct {
 	BuildDate    string
 	Tasks        *tasks.Manager
 	RateLimiter  *RateLimiter
+
+	enrichmentMu         sync.RWMutex
+	enrichmentQueueState string
+	enrichmentUpdatedAt  time.Time
 }
 
 const favoritesSlug = "favourites"
@@ -750,32 +755,53 @@ func (s *Server) serverIntegrationsData(provider string) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
-	connectionPending, err := s.Users.ConnectionEnrichmentPending()
+	connectionStats, err := s.Users.ConnectionEnrichmentQueueStats()
 	if err != nil {
 		return nil, err
 	}
 
+	queueState, queueUpdatedAt := s.enrichmentQueueStateData()
+	if queueState == "" {
+		queueState = "starting"
+	}
 	return map[string]any{
-		"Title":                   "Enhancement",
-		"AdminTab":                "integrations",
-		"EnrichmentTab":           provider,
-		"HardcoverEnabled":        settings.HardcoverEnabled,
-		"HardcoverActive":         s.Hardcover.Enabled(),
-		"HardcoverConfigured":     settings.HardcoverToken != "",
-		"HideNoHardcoverMatch":    settings.HideNoHardcoverMatch,
-		"HardcoverOverwriteCover": settings.HardcoverOverwriteCover,
-		"ChaptarrEnabled":         settings.ChaptarrEnabled,
-		"ChaptarrActive":          s.Chaptarr.Enabled(),
-		"ChaptarrURL":             settings.ChaptarrURL,
-		"ChaptarrConfigured":      settings.ChaptarrAPIKey != "",
-		"HideNoChaptarrMatch":     settings.HideNoChaptarrMatch,
-		"EnrichmentPending":       enrichmentStats.Pending,
-		"ConnectionPending":       connectionPending,
-		"PendingTotal":            enrichmentStats.Pending + connectionPending,
-		"EnrichmentDone":          enrichmentStats.Done,
-		"EnrichmentNoMatch":       enrichmentStats.NoMatch,
-		"EnrichmentErrored":       enrichmentStats.Errored,
+		"Title":                    "Enhancement",
+		"AdminTab":                 "integrations",
+		"EnrichmentTab":            provider,
+		"HardcoverEnabled":         settings.HardcoverEnabled,
+		"HardcoverActive":          s.Hardcover.Enabled(),
+		"HardcoverConfigured":      settings.HardcoverToken != "",
+		"HideNoHardcoverMatch":     settings.HideNoHardcoverMatch,
+		"HardcoverOverwriteCover":  settings.HardcoverOverwriteCover,
+		"ChaptarrEnabled":          settings.ChaptarrEnabled,
+		"ChaptarrActive":           s.Chaptarr.Enabled(),
+		"ChaptarrURL":              settings.ChaptarrURL,
+		"ChaptarrConfigured":       settings.ChaptarrAPIKey != "",
+		"HideNoChaptarrMatch":      settings.HideNoChaptarrMatch,
+		"EnrichmentPending":        enrichmentStats.Pending,
+		"ConnectionPending":        connectionStats.Pending,
+		"ConnectionUnmatchedLocal": connectionStats.UnmatchedLocal,
+		"ConnectionCoverCache":     connectionStats.CoverCache,
+		"PendingTotal":             enrichmentStats.Pending + connectionStats.Pending,
+		"EnrichmentDone":           enrichmentStats.Done,
+		"EnrichmentNoMatch":        enrichmentStats.NoMatch,
+		"EnrichmentErrored":        enrichmentStats.Errored,
+		"EnrichmentQueueState":     queueState,
+		"EnrichmentQueueUpdatedAt": queueUpdatedAt,
 	}, nil
+}
+
+func (s *Server) setEnrichmentQueueState(state string) {
+	s.enrichmentMu.Lock()
+	defer s.enrichmentMu.Unlock()
+	s.enrichmentQueueState = state
+	s.enrichmentUpdatedAt = time.Now()
+}
+
+func (s *Server) enrichmentQueueStateData() (string, time.Time) {
+	s.enrichmentMu.RLock()
+	defer s.enrichmentMu.RUnlock()
+	return s.enrichmentQueueState, s.enrichmentUpdatedAt
 }
 
 func (s *Server) ServerInfo(w http.ResponseWriter, r *http.Request) {
