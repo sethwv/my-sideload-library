@@ -64,7 +64,7 @@ type sqlExecer interface {
 // series, release date, description, genres, publisher, page count, ISBN,
 // rating, or a cover image. Kept as one shared fragment so the candidate
 // query and the stats query can't drift apart.
-const needsEnrichmentWhere = `COALESCE(be.status, '') = ''
+const needsEnrichmentWhere = `(COALESCE(be.status, '') = '' OR (be.status = 'error' AND be.next_retry_at <= strftime('%s','now')))
 	AND (
 		COALESCE(be.series, b.series) IS NULL OR COALESCE(be.series, b.series) = ''
 		OR COALESCE(be.published_date, b.published_date) IS NULL OR COALESCE(be.published_date, b.published_date) = ''
@@ -87,7 +87,7 @@ func (d *DB) BooksNeedingEnrichment(limit int) ([]EnrichmentCandidate, error) {
 		SELECT b.id, b.title, b.author, COALESCE(b.identifier, ''), b.file_path, b.added_at FROM books b
 		LEFT JOIN book_enrichment be ON be.book_id = b.id
 		WHERE `+needsEnrichmentWhere+`
-		ORDER BY b.id
+		ORDER BY CASE WHEN COALESCE(be.status, '') = 'error' THEN be.next_retry_at ELSE 0 END, b.id
 		LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list books needing enrichment: %w", err)
@@ -113,7 +113,7 @@ func (d *DB) BooksMissingHardcoverID(limit int) ([]EnrichmentCandidate, error) {
 	if limit < 1 {
 		limit = 100
 	}
-	rows, err := d.sql.Query(`SELECT b.id, b.title, b.author, b.identifier, b.file_path, b.added_at
+	rows, err := d.sql.Query(`SELECT b.id, b.title, b.author, COALESCE(b.identifier, ''), b.file_path, b.added_at
 		FROM books b LEFT JOIN book_enrichment be ON be.book_id = b.id
 		WHERE COALESCE(be.hardcover_id, '') = '' ORDER BY b.id LIMIT ?`, limit)
 	if err != nil {
@@ -137,7 +137,23 @@ func (d *DB) BooksMissingHardcoverID(limit int) ([]EnrichmentCandidate, error) {
 // book, so it isn't retried every scan/queue pass. Valid statuses: "done",
 // "no_match", "error".
 func (d *DB) SetEnrichmentStatus(bookID int64, status string) error {
+	if status == "error" {
+		return d.SetEnrichmentRetry(bookID)
+	}
 	return setProviderStatus(d.sql, "status", bookID, status)
+}
+
+// SetEnrichmentRetry records a failed local lookup and schedules its next
+// attempt. The delay is capped so transient provider outages eventually heal.
+func (d *DB) SetEnrichmentRetry(bookID int64) error {
+	_, err := d.sql.Exec(`INSERT INTO book_enrichment (book_id, status, retry_count, next_retry_at, updated_at)
+		VALUES (?, 'error', 1, strftime('%s','now') + 60, strftime('%s','now'))
+		ON CONFLICT(book_id) DO UPDATE SET
+			status = 'error',
+			retry_count = book_enrichment.retry_count + 1,
+			next_retry_at = strftime('%s','now') + MIN(3600, 60 * (1 << MIN(6, book_enrichment.retry_count))),
+			updated_at = excluded.updated_at`, bookID)
+	return err
 }
 
 // SetChaptarrStatus records Chaptarr's own outcome for a book, independent
@@ -241,8 +257,8 @@ func (d *DB) GetEnrichmentSource(bookID int64) (string, error) {
 
 func upsertEnrichment(exec sqlExecer, bookID int64, f MetadataPatch, status, source string) error {
 	_, err := exec.Exec(`
-		INSERT INTO book_enrichment (book_id, title, series, series_index, published_date, description, genres, publisher, pages, isbn, rating, status, source, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+		INSERT INTO book_enrichment (book_id, title, series, series_index, published_date, description, genres, publisher, pages, isbn, rating, status, source, retry_count, next_retry_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, strftime('%s','now'))
 		ON CONFLICT(book_id) DO UPDATE SET
 			title = excluded.title,
 			series = excluded.series,
@@ -256,6 +272,8 @@ func upsertEnrichment(exec sqlExecer, bookID int64, f MetadataPatch, status, sou
 			rating = excluded.rating,
 			status = excluded.status,
 			source = excluded.source,
+			retry_count = 0,
+			next_retry_at = 0,
 			updated_at = excluded.updated_at`,
 		bookID, nullIfEmpty(f.Title), nullIfEmpty(f.Series), f.SeriesIndex, nullIfEmpty(f.PublishedDate),
 		nullIfEmpty(f.Description), nullIfEmpty(joinCSV(f.Genres)), nullIfEmpty(f.Publisher),

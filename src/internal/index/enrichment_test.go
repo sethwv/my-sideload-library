@@ -39,6 +39,51 @@ func TestBooksNeedingEnrichment_OnlyMissingFieldsUnprocessed(t *testing.T) {
 	}
 }
 
+func TestBooksMissingHardcoverIDAllowsNullIdentifier(t *testing.T) {
+	libDir := t.TempDir()
+	writeTestEpub(t, filepath.Join(libDir, "book.epub"), "No Identifier", "Author")
+	db := openTestDB(t)
+	if err := db.Scan([]string{libDir}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.sql.Exec(`UPDATE books SET identifier = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := db.BooksMissingHardcoverID(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(candidates) != 1 || candidates[0].Identifier != "" {
+		t.Fatalf("candidates = %+v, want empty identifier", candidates)
+	}
+}
+
+func TestBooksNeedingEnrichment_RetriesErrorsOnlyWhenDue(t *testing.T) {
+	libDir := t.TempDir()
+	writeTestEpub(t, filepath.Join(libDir, "b1.epub"), "Retry Me", "Amy Zed")
+	db := openTestDB(t)
+	if err := db.Scan([]string{libDir}, nil); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := db.BooksNeedingEnrichment(10)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("initial candidates = %#v, %v", candidates, err)
+	}
+	bookID := candidates[0].ID
+	if err := db.SetEnrichmentRetry(bookID); err != nil {
+		t.Fatal(err)
+	}
+	if candidates, err = db.BooksNeedingEnrichment(10); err != nil || len(candidates) != 0 {
+		t.Fatalf("backed off candidates = %#v, %v; want none", candidates, err)
+	}
+	if _, err := db.sql.Exec(`UPDATE book_enrichment SET next_retry_at = 0 WHERE book_id = ?`, bookID); err != nil {
+		t.Fatal(err)
+	}
+	if candidates, err = db.BooksNeedingEnrichment(10); err != nil || len(candidates) != 1 {
+		t.Fatalf("due retry candidates = %#v, %v; want one", candidates, err)
+	}
+}
+
 // TestBooksNeedingEnrichment_ChaptarrClaimIsNeverRevisitedByHardcover locks
 // in the mechanism RunChaptarrQueue/RunEnrichmentQueue (internal/web) both
 // rely on for "Chaptarr takes precedence when both integrations are
