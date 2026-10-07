@@ -285,6 +285,15 @@ func (s *Store) SetConnectionItemCoverPath(c ConnectionEnrichmentCandidate, cove
 	return err
 }
 
+func (s *Store) SetConnectionItemCoverCacheFailed(c ConnectionEnrichmentCandidate) error {
+	userID, err := s.connectionUserID(c.Username)
+	if err != nil {
+		return err
+	}
+	_, err = s.sql.Exec(`UPDATE connection_items SET cover_cache_failed = 1 WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
+	return err
+}
+
 func (s *Store) ConnectionCoverPath(username, provider, remoteShelfKey, externalID string) (string, error) {
 	userID, err := s.connectionUserID(username)
 	if err != nil {
@@ -315,7 +324,7 @@ func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmen
 // ConnectionCoverCacheCandidates returns enriched ghost covers that have not
 // been persisted to the local thumbnail store yet.
 func (s *Store) ConnectionCoverCacheCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
-	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.cover_url FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND ci.cover_url != '' AND ci.cover_path = '' ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.cover_url FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND ci.cover_url != '' AND ci.cover_path = '' AND ci.cover_cache_failed = 0 ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +357,7 @@ func (s *Store) SetConnectionItemEnrichment(c ConnectionEnrichmentCandidate, har
 		_, err = s.sql.Exec(`UPDATE connection_items SET enrichment_status = 'error', enrichment_retry_count = enrichment_retry_count + 1, enrichment_next_retry_at = strftime('%s','now') + MIN(3600, 60 * (1 << MIN(6, enrichment_retry_count))) WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
 		return err
 	}
-	_, err = s.sql.Exec(`UPDATE connection_items SET hardcover_id = ?, enriched_title = ?, enriched_author = ?, cover_url = ?, enrichment_status = ?, enrichment_retry_count = 0, enrichment_next_retry_at = 0 WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, hardcoverID, title, author, coverURL, status, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
+	_, err = s.sql.Exec(`UPDATE connection_items SET hardcover_id = ?, enriched_title = ?, enriched_author = ?, cover_url = ?, cover_cache_failed = 0, enrichment_status = ?, enrichment_retry_count = 0, enrichment_next_retry_at = 0 WHERE user_id = ? AND provider = ? AND remote_shelf_key = ? AND external_id = ?`, hardcoverID, title, author, coverURL, status, userID, c.Provider, c.RemoteShelfKey, c.ExternalID)
 	return err
 }
 

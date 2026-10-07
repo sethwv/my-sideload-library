@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 )
 
 // Store caches resized JPEG cover thumbnails on disk, keyed by book ID.

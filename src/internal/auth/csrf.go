@@ -35,10 +35,15 @@ func (a *Authenticator) CSRFToken(r *http.Request) string {
 // behavior.
 func (a *Authenticator) RequireCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-		if err != nil {
-			http.Error(w, "bad form", http.StatusBadRequest)
-			return
+		contentType := r.Header.Get("Content-Type")
+		mediaType := ""
+		var err error
+		if contentType != "" {
+			mediaType, _, err = mime.ParseMediaType(contentType)
+			if err != nil {
+				http.Error(w, "bad form", http.StatusBadRequest)
+				return
+			}
 		}
 		if strings.EqualFold(mediaType, "multipart/form-data") {
 			r.Body = http.MaxBytesReader(w, r.Body, csrfMultipartMaxBytes)

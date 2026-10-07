@@ -2,9 +2,13 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"image"
 	"log"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
@@ -16,6 +20,8 @@ import (
 const idlePollInterval = 30 * time.Second
 
 const enrichmentBatchSize = 200
+
+const enrichmentWorkers = 4
 
 // RunEnrichmentQueue gives fresh Chaptarr path matches and provider-connected
 // items priority, then uses general Hardcover matching as fallback work.
@@ -94,11 +100,14 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		logState(fmt.Sprintf("processing %d library, %d connection, and %d cover cache candidates (hardcover=%t chaptarr_cache=%t)", len(candidates), len(connectionCandidates), len(coverCandidates), s.Hardcover.Enabled(), chBooks != nil))
 
 		processedAny := false
-		for _, c := range coverCandidates {
+		if runEnrichmentWorkers(ctx, coverCandidates, func(ctx context.Context, c users.ConnectionEnrichmentCandidate) bool {
 			if err := s.cacheConnectionCover(ctx, c, c.CoverURL); err != nil {
 				log.Printf("enrichment queue: cache connection cover for %s/%s: %v", c.Provider, c.ExternalID, err)
-				continue
+				s.markConnectionCoverCacheFailure(c, err)
+				return false
 			}
+			return true
+		}) {
 			processedAny = true
 		}
 		// Handle deterministic Chaptarr paths before generic matching.
@@ -123,26 +132,62 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		}
 		// Finish local-library work before connected ghosts so enhancements for
 		// EPUB-backed books are always prioritized.
+		hardcoverCandidates := make([]index.EnrichmentCandidate, 0, len(candidates))
 		for _, c := range candidates {
 			if chBooks != nil && c.AddedAt.Before(chaptarrRefreshedAt.Truncate(time.Second)) {
 				if _, matched := chaptarr.MatchByPath(chBooks, c.FilePath); matched {
 					continue
 				}
 			}
-			if s.processHardcoverMatch(ctx, c, overwriteCover) {
-				processedAny = true
-			}
+			hardcoverCandidates = append(hardcoverCandidates, c)
 		}
-		for _, c := range connectionCandidates {
-			if s.processConnectionHardcoverMatch(ctx, c) {
-				processedAny = true
-			}
+		if runEnrichmentWorkers(ctx, hardcoverCandidates, func(ctx context.Context, c index.EnrichmentCandidate) bool {
+			return s.processHardcoverMatch(ctx, c, overwriteCover)
+		}) {
+			processedAny = true
+		}
+		if runEnrichmentWorkers(ctx, connectionCandidates, s.processConnectionHardcoverMatch) {
+			processedAny = true
 		}
 
 		if !processedAny {
 			sleepOrDone(ctx, idlePollInterval)
 		}
 	}
+}
+
+// runEnrichmentWorkers overlaps request and thumbnail latency while the
+// Hardcover client remains the single authority for provider rate limiting.
+func runEnrichmentWorkers[T any](ctx context.Context, candidates []T, process func(context.Context, T) bool) bool {
+	if len(candidates) == 0 {
+		return false
+	}
+	jobs := make(chan T)
+	var processed atomic.Bool
+	var workers sync.WaitGroup
+	for range min(enrichmentWorkers, len(candidates)) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for candidate := range jobs {
+				if process(ctx, candidate) {
+					processed.Store(true)
+				}
+			}
+		}()
+	}
+	for _, candidate := range candidates {
+		select {
+		case <-ctx.Done():
+			close(jobs)
+			workers.Wait()
+			return processed.Load()
+		case jobs <- candidate:
+		}
+	}
+	close(jobs)
+	workers.Wait()
+	return processed.Load()
 }
 
 func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.ConnectionEnrichmentCandidate) bool {
@@ -175,10 +220,20 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	if detail.Image != "" {
 		if err := s.cacheConnectionCover(ctx, c, detail.Image); err != nil {
 			log.Printf("enrichment queue: cache connection cover for %s/%s: %v", c.Provider, c.ExternalID, err)
+			s.markConnectionCoverCacheFailure(c, err)
 		}
 	}
 	s.promoteEnrichedConnectionMatch(c, best)
 	return true
+}
+
+func (s *Server) markConnectionCoverCacheFailure(c users.ConnectionEnrichmentCandidate, err error) {
+	if !errors.Is(err, image.ErrFormat) {
+		return
+	}
+	if saveErr := s.Users.SetConnectionItemCoverCacheFailed(c); saveErr != nil {
+		log.Printf("enrichment queue: mark uncached connection cover for %s/%s: %v", c.Provider, c.ExternalID, saveErr)
+	}
 }
 
 func (s *Server) cacheConnectionCover(ctx context.Context, c users.ConnectionEnrichmentCandidate, rawURL string) error {
