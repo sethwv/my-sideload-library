@@ -29,7 +29,7 @@
 </div>
 
 <h2>Library</h2>
-<form method="POST" action="/admin/server/clear" style="margin-top:1em;">
+<form method="POST" action="/admin/server/clear" style="margin-top:1em;" data-confirm="This removes the indexed library before queuing a fresh scan." data-confirm-title="Clear the library?">
   {{template "csrf_field" .}}
   <button type="submit">Clear library and queue scan</button>
 </form>

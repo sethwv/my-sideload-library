@@ -17,3 +17,18 @@ func TestParseGoodreadsCSV(t *testing.T) {
 		t.Fatalf("item = %+v", snapshot.Items[0])
 	}
 }
+
+func TestIntegrationShelfName(t *testing.T) {
+	for _, test := range []struct {
+		provider string
+		name     string
+		want     string
+	}{
+		{"goodreads", "to-read", "Goodreads: to-read"},
+		{"hardcover", "Read", "Hardcover: Read"},
+	} {
+		if got := IntegrationShelfName(test.provider, test.name); got != test.want {
+			t.Errorf("IntegrationShelfName(%q, %q) = %q, want %q", test.provider, test.name, got, test.want)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
+	"github.com/sethwv/my-sideload-library/internal/connections"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 	"github.com/sethwv/my-sideload-library/internal/index"
 	"github.com/sethwv/my-sideload-library/internal/users"
@@ -197,7 +198,8 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	if !s.Hardcover.Enabled() {
 		return false
 	}
-	matches, err := s.Hardcover.Search(ctx, c.Title, c.Author, c.ISBN)
+	title := connectionDisplayTitle(c.Title)
+	matches, err := s.Hardcover.Search(ctx, title, c.Author, c.ISBN)
 	if err != nil {
 		log.Printf("enrichment queue: connection search failed for %s/%s: %v", c.Provider, c.ExternalID, err)
 		if hardcover.Retryable(err) {
@@ -205,7 +207,7 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 		}
 		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
 	}
-	best, ok := connectionHardcoverMatch(matches, c.ISBN, c.Title, c.Author)
+	best, ok := connectionHardcoverMatch(matches, c.ISBN, title, c.Author)
 	if !ok {
 		return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "no_match") == nil
 	}
@@ -351,7 +353,7 @@ func (s *Server) promoteConnectionMatch(c users.ConnectionEnrichmentCandidate, h
 				bookIDs = append(bookIDs, item.LocalBookID)
 			}
 		}
-		if _, err := s.DB.ReplaceIntegrationShelfBooks(c.Username, c.Provider, c.RemoteShelfKey, shelf.Name, bookIDs); err != nil {
+		if _, err := s.DB.ReplaceIntegrationShelfBooks(c.Username, c.Provider, c.RemoteShelfKey, connections.IntegrationShelfName(c.Provider, shelf.Name), bookIDs); err != nil {
 			log.Printf("enrichment queue: refresh integration shelf: %v", err)
 		}
 		return true

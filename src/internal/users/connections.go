@@ -42,15 +42,18 @@ type ConnectionEnrichmentCandidate struct {
 
 // ConnectionEnrichmentStats summarizes background work for provider shelves.
 type ConnectionEnrichmentStats struct {
-	Pending        int
-	UnmatchedLocal int
-	CoverCache     int
+	Pending          int
+	NoMatch          int
+	Errored          int
+	UnmatchedLocal   int
+	CoverCache       int
+	CoverCacheFailed int
 }
 
 // ConnectionPromotionCandidates returns unresolved provider items whose
 // existing metadata can be matched locally without another API request.
 func (s *Store) ConnectionPromotionCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
-	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn, ci.hardcover_id, ci.enriched_title, ci.enriched_author FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn, ci.hardcover_id, ci.enriched_title, ci.enriched_author FROM connection_items ci JOIN users u ON u.id = ci.user_id JOIN connection_shelves cs ON cs.user_id = ci.user_id AND cs.provider = ci.provider AND cs.remote_key = ci.remote_shelf_key WHERE ci.local_book_id = 0 AND cs.selected = 1 ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +315,7 @@ func (s *Store) ConnectionCoverPath(username, provider, remoteShelfKey, external
 }
 
 func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
-	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND (ci.enrichment_status = '' OR (ci.enrichment_status = 'error' AND ci.enrichment_next_retry_at <= strftime('%s','now'))) ORDER BY CASE WHEN ci.enrichment_status = 'error' THEN ci.enrichment_next_retry_at ELSE 0 END, ci.added_at DESC, ci.source_position ASC LIMIT ?`, limit)
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.title, ci.author, ci.isbn FROM connection_items ci JOIN users u ON u.id = ci.user_id JOIN connection_shelves cs ON cs.user_id = ci.user_id AND cs.provider = ci.provider AND cs.remote_key = ci.remote_shelf_key WHERE ci.local_book_id = 0 AND cs.selected = 1 AND (ci.enrichment_status = '' OR (ci.enrichment_status = 'error' AND ci.enrichment_next_retry_at <= strftime('%s','now'))) ORDER BY CASE WHEN ci.enrichment_status = 'error' THEN ci.enrichment_next_retry_at ELSE 0 END, ci.added_at DESC, ci.source_position ASC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +334,7 @@ func (s *Store) ConnectionEnrichmentCandidates(limit int) ([]ConnectionEnrichmen
 // ConnectionCoverCacheCandidates returns enriched ghost covers that have not
 // been persisted to the local thumbnail store yet.
 func (s *Store) ConnectionCoverCacheCandidates(limit int) ([]ConnectionEnrichmentCandidate, error) {
-	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.cover_url FROM connection_items ci JOIN users u ON u.id = ci.user_id WHERE ci.local_book_id = 0 AND ci.cover_url != '' AND ci.cover_path = '' AND ci.cover_cache_failed = 0 ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
+	rows, err := s.sql.Query(`SELECT u.username, ci.provider, ci.remote_shelf_key, ci.external_id, ci.cover_url FROM connection_items ci JOIN users u ON u.id = ci.user_id JOIN connection_shelves cs ON cs.user_id = ci.user_id AND cs.provider = ci.provider AND cs.remote_key = ci.remote_shelf_key WHERE ci.local_book_id = 0 AND cs.selected = 1 AND ci.cover_url != '' AND ci.cover_path = '' AND ci.cover_cache_failed = 0 ORDER BY ci.provider, ci.remote_shelf_key, ci.source_position LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -359,10 +362,28 @@ func (s *Store) ConnectionEnrichmentQueueStats() (ConnectionEnrichmentStats, err
 	var stats ConnectionEnrichmentStats
 	err := s.sql.QueryRow(`SELECT
 		COUNT(*) FILTER (WHERE local_book_id = 0 AND (enrichment_status = '' OR (enrichment_status = 'error' AND enrichment_next_retry_at <= strftime('%s','now')))),
+		COUNT(*) FILTER (WHERE local_book_id = 0 AND enrichment_status = 'no_match'),
+		COUNT(*) FILTER (WHERE local_book_id = 0 AND enrichment_status = 'error'),
 		COUNT(*) FILTER (WHERE local_book_id = 0),
-		COUNT(*) FILTER (WHERE local_book_id = 0 AND cover_url != '' AND cover_path = '' AND cover_cache_failed = 0)
-		FROM connection_items`).Scan(&stats.Pending, &stats.UnmatchedLocal, &stats.CoverCache)
+		COUNT(*) FILTER (WHERE local_book_id = 0 AND cover_url != '' AND cover_path = '' AND cover_cache_failed = 0),
+		COUNT(*) FILTER (WHERE local_book_id = 0 AND cover_cache_failed = 1)
+		FROM connection_items ci JOIN connection_shelves cs ON cs.user_id = ci.user_id AND cs.provider = ci.provider AND cs.remote_key = ci.remote_shelf_key WHERE cs.selected = 1`).Scan(&stats.Pending, &stats.NoMatch, &stats.Errored, &stats.UnmatchedLocal, &stats.CoverCache, &stats.CoverCacheFailed)
 	return stats, err
+}
+
+// RetryConnectionEnrichment makes unresolved terminal or failed provider lookups
+// eligible for another attempt without resetting library-book enrichment.
+func (s *Store) RetryConnectionEnrichment(status string) error {
+	if status != "no_match" && status != "error" {
+		return fmt.Errorf("unsupported connection enrichment status %q", status)
+	}
+	_, err := s.sql.Exec(`UPDATE connection_items SET enrichment_status = '', enrichment_next_retry_at = 0 WHERE local_book_id = 0 AND enrichment_status = ? AND EXISTS (SELECT 1 FROM connection_shelves cs WHERE cs.user_id = connection_items.user_id AND cs.provider = connection_items.provider AND cs.remote_key = connection_items.remote_shelf_key AND cs.selected = 1)`, status)
+	return err
+}
+
+func (s *Store) RetryConnectionCoverCache() error {
+	_, err := s.sql.Exec(`UPDATE connection_items SET cover_cache_failed = 0 WHERE local_book_id = 0 AND cover_url != '' AND cover_path = '' AND cover_cache_failed = 1 AND EXISTS (SELECT 1 FROM connection_shelves cs WHERE cs.user_id = connection_items.user_id AND cs.provider = connection_items.provider AND cs.remote_key = connection_items.remote_shelf_key AND cs.selected = 1)`)
+	return err
 }
 
 func (s *Store) SetConnectionItemEnrichment(c ConnectionEnrichmentCandidate, hardcoverID, title, author, coverURL, status string) error {

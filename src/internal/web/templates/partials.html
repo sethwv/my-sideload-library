@@ -1,5 +1,9 @@
 {{define "csrf_field"}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}
 
+{{define "confirmation_modal"}}
+<div id="confirmation-modal" class="modal-overlay"><div class="modal-box confirmation-box"><h3 id="confirmation-title">Confirm action</h3><p id="confirmation-message"></p><p><button type="button" onclick="return submitConfirmedForm();">Confirm</button> <button type="button" onclick="return closeModal('confirmation-modal');">Cancel</button></p></div></div>
+{{end}}
+
 {{define "topbar"}}
 <header class="topbar">
   <div class="topbar-main">

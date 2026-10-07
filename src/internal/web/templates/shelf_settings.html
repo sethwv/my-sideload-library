@@ -29,12 +29,12 @@
 </form>
 <ul class="shelf-index">
 {{range .Members}}
-  <li>{{.Username}} <form method="POST" action="/shelves/{{$.Shelf.ID}}/settings/members/{{.Username}}/delete" class="inline-form">{{template "csrf_field" $}}<button type="submit"{{if eq $.Shelf.Visibility "private"}} disabled{{end}}>Remove</button></form></li>
+  <li>{{.Username}} <form method="POST" action="/shelves/{{$.Shelf.ID}}/settings/members/{{.Username}}/delete" class="inline-form" data-confirm="Remove {{.Username}} from this shelf?" data-confirm-title="Remove shelf member?">{{template "csrf_field" $}}<button type="submit"{{if eq $.Shelf.Visibility "private"}} disabled{{end}}>Remove</button></form></li>
 {{else}}
   <li class="muted">No members yet.</li>
 {{end}}
 </ul>
-<form method="POST" action="/shelves/{{.Shelf.ID}}/settings/delete" class="inline-form">
+<form method="POST" action="/shelves/{{.Shelf.ID}}/settings/delete" class="inline-form" data-confirm="This permanently deletes the shelf and its membership list." data-confirm-title="Delete shelf?">
   {{template "csrf_field" .}}
   <button type="submit">Delete shelf</button>
 </form>

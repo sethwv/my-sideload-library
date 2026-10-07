@@ -765,29 +765,34 @@ func (s *Server) serverIntegrationsData(provider string) (map[string]any, error)
 		queueState = "starting"
 	}
 	return map[string]any{
-		"Title":                    "Enhancement",
-		"AdminTab":                 "integrations",
-		"EnrichmentTab":            provider,
-		"HardcoverEnabled":         settings.HardcoverEnabled,
-		"HardcoverActive":          s.Hardcover.Enabled(),
-		"HardcoverConfigured":      settings.HardcoverToken != "",
-		"HideNoHardcoverMatch":     settings.HideNoHardcoverMatch,
-		"HardcoverOverwriteCover":  settings.HardcoverOverwriteCover,
-		"ChaptarrEnabled":          settings.ChaptarrEnabled,
-		"ChaptarrActive":           s.Chaptarr.Enabled(),
-		"ChaptarrURL":              settings.ChaptarrURL,
-		"ChaptarrConfigured":       settings.ChaptarrAPIKey != "",
-		"HideNoChaptarrMatch":      settings.HideNoChaptarrMatch,
-		"EnrichmentPending":        enrichmentStats.Pending,
-		"ConnectionPending":        connectionStats.Pending,
-		"ConnectionUnmatchedLocal": connectionStats.UnmatchedLocal,
-		"ConnectionCoverCache":     connectionStats.CoverCache,
-		"PendingTotal":             enrichmentStats.Pending + connectionStats.Pending,
-		"EnrichmentDone":           enrichmentStats.Done,
-		"EnrichmentNoMatch":        enrichmentStats.NoMatch,
-		"EnrichmentErrored":        enrichmentStats.Errored,
-		"EnrichmentQueueState":     queueState,
-		"EnrichmentQueueUpdatedAt": queueUpdatedAt,
+		"Title":                      "Enhancement",
+		"AdminTab":                   "integrations",
+		"EnrichmentTab":              provider,
+		"HardcoverEnabled":           settings.HardcoverEnabled,
+		"HardcoverActive":            s.Hardcover.Enabled(),
+		"HardcoverConfigured":        settings.HardcoverToken != "",
+		"HideNoHardcoverMatch":       settings.HideNoHardcoverMatch,
+		"HardcoverOverwriteCover":    settings.HardcoverOverwriteCover,
+		"ChaptarrEnabled":            settings.ChaptarrEnabled,
+		"ChaptarrActive":             s.Chaptarr.Enabled(),
+		"ChaptarrURL":                settings.ChaptarrURL,
+		"ChaptarrConfigured":         settings.ChaptarrAPIKey != "",
+		"HideNoChaptarrMatch":        settings.HideNoChaptarrMatch,
+		"EnrichmentPending":          enrichmentStats.Pending,
+		"ConnectionPending":          connectionStats.Pending,
+		"ConnectionPendingTotal":     connectionStats.Pending + connectionStats.CoverCache,
+		"ConnectionNoMatch":          connectionStats.NoMatch,
+		"ConnectionErrored":          connectionStats.Errored,
+		"ConnectionErrorTotal":       connectionStats.Errored + connectionStats.CoverCacheFailed,
+		"ConnectionUnmatchedLocal":   connectionStats.UnmatchedLocal,
+		"ConnectionCoverCache":       connectionStats.CoverCache,
+		"ConnectionCoverCacheFailed": connectionStats.CoverCacheFailed,
+		"PendingTotal":               enrichmentStats.Pending + connectionStats.Pending,
+		"EnrichmentDone":             enrichmentStats.Done,
+		"EnrichmentNoMatch":          enrichmentStats.NoMatch,
+		"EnrichmentErrored":          enrichmentStats.Errored,
+		"EnrichmentQueueState":       queueState,
+		"EnrichmentQueueUpdatedAt":   queueUpdatedAt,
 	}, nil
 }
 
@@ -1063,6 +1068,42 @@ func (s *Server) ServerEnrichmentRetry(w http.ResponseWriter, r *http.Request) {
 	status := r.FormValue("status")
 	if err := s.DB.RetryEnrichmentStatus(status); err != nil {
 		http.Error(w, "enrichment retry failed: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)
+}
+
+func (s *Server) ServerConnectionEnrichmentRetry(w http.ResponseWriter, r *http.Request) {
+	if err := s.Users.RetryConnectionEnrichment(r.FormValue("status")); err != nil {
+		http.Error(w, "connection enrichment retry failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)
+}
+
+func (s *Server) ServerConnectionCoverCacheRetry(w http.ResponseWriter, r *http.Request) {
+	if err := s.Users.RetryConnectionCoverCache(); err != nil {
+		http.Error(w, "connection cover cache retry failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)
+}
+
+func (s *Server) ServerConnectionErrorsRetry(w http.ResponseWriter, r *http.Request) {
+	if err := s.Users.RetryConnectionEnrichment("error"); err != nil {
+		http.Error(w, "connection enrichment retry failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.Users.RetryConnectionCoverCache(); err != nil {
+		http.Error(w, "connection cover cache retry failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)
+}
+
+func (s *Server) ServerConnectionPromotionRetry(w http.ResponseWriter, r *http.Request) {
+	if _, err := s.promoteStoredConnectionMatches(); err != nil {
+		http.Error(w, "connection promotion recheck failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/admin/integrations", http.StatusSeeOther)

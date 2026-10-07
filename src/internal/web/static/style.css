@@ -764,6 +764,17 @@ th { background: #f7f7f7; }
 .task-run { padding: 0.35em 0.5em; line-height: 0; }
 .task-run svg { width: 1.1em; height: 1.1em; }
 .task-run:disabled { cursor: default; }
+.queue-table .task-run { min-width: 2.4em; padding: 0.25em 0.45em; line-height: 1.2; font-size: 1em; }
+
+.queue-panels { margin: 0.75em 0; }
+.queue-panel { border: 1px solid #c8c8c8; margin: 0.75em 0; }
+.queue-panel h3 { margin: 0; padding: 0.45em 0.65em; background: #f2f2f2; }
+.queue-line { margin: 0; padding: 0.35em 0.65em 0.35em 2em; border-top: 1px solid #e2e2e2; }
+.queue-line span { display: inline-block; width: 12em; }
+.queue-line strong { display: inline-block; min-width: 2em; text-align: right; margin-right: 0.65em; }
+html.theme-dark .queue-panel { border-color: #595959; }
+html.theme-dark .queue-line { border-color: #444; }
+html.theme-dark .queue-panel h3 { background: #222; }
 .task-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 1em; }
 .task-page-heading h1 { margin: 0.4em 0; }
 .task-error summary { cursor: pointer; }

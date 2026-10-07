@@ -175,6 +175,9 @@ func TestConnectionEnrichmentCandidates_RetriesErrorsOnlyWhenDue(t *testing.T) {
 	if err := s.ReplaceConnectionSnapshot("reader", "goodreads", []ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []ConnectionItem{{RemoteShelfKey: "read", ExternalID: "book", Title: "Book"}}); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.SetConnectionShelfSelection("reader", "goodreads", "read", true); err != nil {
+		t.Fatal(err)
+	}
 	candidate := ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "book"}
 	if err := s.SetConnectionItemEnrichment(candidate, "", "", "", "", "error"); err != nil {
 		t.Fatal(err)
@@ -197,6 +200,30 @@ func TestConnectionEnrichmentCandidates_RetriesErrorsOnlyWhenDue(t *testing.T) {
 	}
 	if stats.Pending != 1 || stats.UnmatchedLocal != 1 || stats.CoverCache != 0 {
 		t.Errorf("ConnectionEnrichmentQueueStats() = %#v, want pending=1 unmatched=1 coverCache=0", stats)
+	}
+}
+
+func TestRetryConnectionEnrichment(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.Create("reader", "password", RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceConnectionSnapshot("reader", "goodreads", []ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []ConnectionItem{{RemoteShelfKey: "read", ExternalID: "book", Title: "Book"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetConnectionShelfSelection("reader", "goodreads", "read", true); err != nil {
+		t.Fatal(err)
+	}
+	candidate := ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "book"}
+	if err := s.SetConnectionItemEnrichment(candidate, "", "", "", "", "no_match"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RetryConnectionEnrichment("no_match"); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := s.ConnectionEnrichmentCandidates(10)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("ConnectionEnrichmentCandidates() = %#v, %v; want one retried candidate", candidates, err)
 	}
 }
 

@@ -19,6 +19,7 @@ var openModalId = null;
 var librarySearch = null;
 var librarySearchParent = null;
 var librarySearchPlaceholder = null;
+var confirmedForm = null;
 
 function setLibrarySearchDisabled(disabled) {
   var search = document.getElementById("q");
@@ -79,9 +80,39 @@ function closeModal(id) {
     backdrop.style.display = "none";
   }
   openModalId = null;
+  if (id === "confirmation-modal") {
+    confirmedForm = null;
+  }
   setLibrarySearchDisabled(false);
   return false;
 }
+
+function confirmFormSubmission(form) {
+  var title = document.getElementById("confirmation-title");
+  var message = document.getElementById("confirmation-message");
+  if (title) { title.textContent = form.getAttribute("data-confirm-title") || "Confirm action"; }
+  if (message) { message.textContent = form.getAttribute("data-confirm") || "Are you sure you want to continue?"; }
+  confirmedForm = form;
+  return openModal("confirmation-modal");
+}
+
+function submitConfirmedForm() {
+  var form = confirmedForm;
+  closeModal("confirmation-modal");
+  if (form) { form.submit(); }
+  return false;
+}
+
+document.onsubmit = function (e) {
+  e = e || window.event;
+  var form = e.target || e.srcElement;
+  if (form && form.getAttribute && form.getAttribute("data-confirm")) {
+    if (e.preventDefault) { e.preventDefault(); }
+    e.returnValue = false;
+    return confirmFormSubmission(form);
+  }
+  return true;
+};
 
 function openShelfPicker(bookId) {
   closeModal("book-" + bookId);

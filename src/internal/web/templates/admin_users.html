@@ -90,12 +90,12 @@
     {{end}}
 
     <div class="modal-danger-zone">
-      <form method="POST" action="/admin/users/{{.ID}}/enabled">
+      <form method="POST" action="/admin/users/{{.ID}}/enabled"{{if .Enabled}} data-confirm="This immediately prevents {{.Username}} from signing in." data-confirm-title="Disable account?"{{end}}>
         {{template "csrf_field" $}}
         <input type="hidden" name="enabled" value="{{if .Enabled}}false{{else}}true{{end}}">
         <button type="submit">{{if .Enabled}}Disable account{{else}}Enable account{{end}}</button>
       </form>
-      <form method="POST" action="/admin/users/{{.ID}}/delete">
+      <form method="POST" action="/admin/users/{{.ID}}/delete" data-confirm="This permanently deletes {{.Username}} and their account data." data-confirm-title="Delete user?">
         {{template "csrf_field" $}}
         <button type="submit">Delete user</button>
       </form>

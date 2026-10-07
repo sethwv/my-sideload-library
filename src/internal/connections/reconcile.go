@@ -62,14 +62,16 @@ func Reconcile(username, provider string, snapshot Snapshot, store *users.Store,
 				bookIDs = append(bookIDs, bookID)
 			}
 		}
-		if _, err := db.ReplaceIntegrationShelfBooks(username, provider, shelf.RemoteKey, integrationShelfName(provider, shelf.Name), bookIDs); err != nil {
+		if _, err := db.ReplaceIntegrationShelfBooks(username, provider, shelf.RemoteKey, IntegrationShelfName(provider, shelf.Name), bookIDs); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func integrationShelfName(provider, name string) string {
+// IntegrationShelfName provides a consistent, recognizable provider prefix
+// wherever an integration shelf is refreshed.
+func IntegrationShelfName(provider, name string) string {
 	providerName := provider
 	switch provider {
 	case "goodreads":

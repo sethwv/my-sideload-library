@@ -16,6 +16,7 @@
 <div class="container">
 {{template "content" .}}
 </div>
+{{template "confirmation_modal" .}}
 {{if .BuildVersion}}<footer class="footer"><a class="footer-version" href="{{sourceURL .BuildVersion}}">{{.BuildVersion}}</a> {{formatBuildDate .BuildDate}}</footer>{{end}}
 </body>
 </html>
