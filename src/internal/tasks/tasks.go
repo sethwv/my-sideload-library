@@ -31,6 +31,7 @@ type Task struct {
 	Name     string
 	Kind     Kind
 	Runnable bool
+	Hidden   bool
 	NextRun  string
 }
 
@@ -344,8 +345,43 @@ func (m *Manager) StartService(ctx context.Context, key string, fn func(context.
 	return nil
 }
 
-func (m *Manager) Summaries() ([]Summary, error)    { return m.store.summaries(m.definitions()) }
-func (m *Manager) History(limit int) ([]Run, error) { return m.store.history(m.names(), limit) }
+func (m *Manager) Summaries() ([]Summary, error) {
+	summaries, err := m.store.summaries(m.definitions())
+	if err != nil {
+		return nil, err
+	}
+	return filterVisibleSummaries(summaries), nil
+}
+
+func (m *Manager) History(limit int) ([]Run, error) {
+	runs, err := m.store.history(m.names(), limit*2+10)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	visible := make([]Run, 0, limit)
+	for _, run := range runs {
+		if task, ok := m.tasks[run.TaskKey]; !ok || task.Hidden {
+			continue
+		}
+		visible = append(visible, run)
+		if len(visible) == limit {
+			break
+		}
+	}
+	return visible, nil
+}
+
+func filterVisibleSummaries(summaries []Summary) []Summary {
+	visible := make([]Summary, 0, len(summaries))
+	for _, summary := range summaries {
+		if !summary.Hidden {
+			visible = append(visible, summary)
+		}
+	}
+	return visible
+}
 
 func (m *Manager) definitions() []Task {
 	m.mu.RLock()

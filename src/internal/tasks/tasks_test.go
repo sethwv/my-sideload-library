@@ -141,3 +141,30 @@ func TestManagerRecordsFailedJobError(t *testing.T) {
 		t.Fatalf("history = %#v, want persisted failed run", history)
 	}
 }
+
+func TestManagerHidesInternalTasksFromSummariesAndHistory(t *testing.T) {
+	manager := newTestManager(t)
+	manager.Register(Task{Key: "visible", Name: "Visible", Kind: KindJob, Runnable: true}, func(context.Context) error { return nil })
+	manager.Register(Task{Key: "internal", Name: "Internal", Kind: KindJob, Hidden: true}, func(context.Context) error { return nil })
+	if err := manager.Run(context.Background(), "visible"); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Run(context.Background(), "internal"); err != nil {
+		t.Fatal(err)
+	}
+
+	summaries, err := manager.Summaries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summaries) != 1 || summaries[0].Key != "visible" {
+		t.Fatalf("summaries = %#v, want only the visible task", summaries)
+	}
+	history, err := manager.History(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 || history[0].TaskKey != "visible" {
+		t.Fatalf("history = %#v, want only the visible task", history)
+	}
+}
