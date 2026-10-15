@@ -137,7 +137,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 				}
 			}
 		}
-		// Finish local-library work before connected ghosts so enhancements for
+		// Finish local-library work before connected ghosts so metadata work for
 		// EPUB-backed books are always prioritized.
 		hardcoverCandidates := make([]index.EnrichmentCandidate, 0, len(candidates))
 		for _, c := range candidates {

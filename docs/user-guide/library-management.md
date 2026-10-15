@@ -6,7 +6,7 @@ nav_order: 8
 
 # Library Management
 
-The optional **Enhancement** settings enrich EPUB metadata and covers with Chaptarr or Hardcover. A library remains usable with metadata found in its EPUB files.
+The optional **Enrichment** settings enrich EPUB metadata and covers with Chaptarr or Hardcover. A library remains usable with metadata found in its EPUB files.
 
 Configure Chaptarr with its base URL and API key. Create a Hardcover personal API key from [Hardcover API Access](https://hardcover.app/account/api) with the `read:catalog` scope, then configure it in Hardcover. See Hardcover's [getting-started guide](https://docs.hardcover.app/api/getting-started/) for key management. Enable one provider first and confirm results. When both are enabled, Chaptarr matches first; an associated Hardcover ID can fill fields Chaptarr does not provide.
 

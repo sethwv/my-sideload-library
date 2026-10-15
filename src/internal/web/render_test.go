@@ -137,7 +137,7 @@ func TestRenderAdminIntegrationsTabsAndForms(t *testing.T) {
 				t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 			}
 			body := recorder.Body.String()
-			for _, want := range []string{`aria-label="Enhancement providers"`, tt.wantTab, tt.wantPanel, tt.wantFormAction, tt.wantInput} {
+			for _, want := range []string{`aria-label="Enrichment providers"`, tt.wantTab, tt.wantPanel, tt.wantFormAction, tt.wantInput} {
 				if !strings.Contains(body, want) {
 					t.Errorf("response missing %q: %s", want, body)
 				}
@@ -245,13 +245,13 @@ func TestAdminTabsUseRequestedOrderAndLabels(t *testing.T) {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
 	body := recorder.Body.String()
-	for _, want := range []string{"Server", "Setup", "Users", "Tasks", "SMTP", "Enhancement"} {
+	for _, want := range []string{"Server", "Setup", "Users", "Tasks", "SMTP", "Enrichment"} {
 		if !strings.Contains(body, ">"+want+"<") {
 			t.Errorf("response missing %q: %s", want, body)
 		}
 	}
 	last := -1
-	for _, want := range []string{">Server<", ">Setup<", ">Users<", ">Tasks<", ">SMTP<", ">Enhancement<"} {
+	for _, want := range []string{">Server<", ">Setup<", ">Users<", ">Tasks<", ">SMTP<", ">Enrichment<"} {
 		position := strings.Index(body, want)
 		if position <= last {
 			t.Errorf("admin tab %q is out of order: %s", want, body)

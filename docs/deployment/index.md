@@ -29,7 +29,7 @@ Serve the application through an HTTPS reverse proxy. The application listens on
 | `SESSION_SECRET` | Empty | Runtime session-cookie signing-key override |
 | `PORT` | `8080` | HTTP listen port |
 
-Configure the site name, public URL, cover width, page size, session lifetime, and enhancement providers from the administrator interface after setup. Those settings are persisted in `DATA_DIR/users.db`.
+Configure the site name, public URL, cover width, page size, session lifetime, and enrichment providers from the administrator interface after setup. Those settings are persisted in `DATA_DIR/users.db`.
 
 For the full development environment and contribution terms, see [CONTRIBUTING.md](https://github.com/sethwv/my-sideload-library/blob/main/CONTRIBUTING.md).
 

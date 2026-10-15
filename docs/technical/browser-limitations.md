@@ -27,4 +27,4 @@ The primary target is Kobo's built-in browser, a roughly 2015-era QtWebKit engin
 - **GET responses can appear stale.** The server sends `Cache-Control: no-cache` for HTML pages to avoid aggressive old-browser caching of search and sort URLs.
 - **Hardware testing remains necessary.** There is no faithful QtWebKit simulator. Test CSS and JavaScript changes on a real device before treating them as compatible.
 
-These constraints apply to the application served by my-sideload-library. The public documentation site may use modern browser enhancements such as the screenshot lightbox.
+These constraints apply to the application served by my-sideload-library. The public documentation site may use modern browser features such as the screenshot lightbox.

@@ -55,3 +55,32 @@ func (s *Server) ReconcileChaptarrMatches(ctx context.Context) error {
 		}
 	}
 }
+
+// ChaptarrReconciliationPending counts prior Chaptarr misses whose paths now
+// exist in the current catalog. It performs no network I/O.
+func (s *Server) ChaptarrReconciliationPending() (int, error) {
+	if !s.Chaptarr.Enabled() {
+		return 0, nil
+	}
+	chBooks, refreshedAt := s.Chaptarr.CachedBooks()
+	if len(chBooks) == 0 || refreshedAt.IsZero() || !refreshedAt.Add(chaptarr.DefaultCacheTTL).After(time.Now()) {
+		return 0, nil
+	}
+
+	pending := 0
+	for afterID := int64(0); ; {
+		candidates, err := s.DB.BooksWithChaptarrNoMatch(afterID, enrichmentBatchSize)
+		if err != nil {
+			return 0, err
+		}
+		if len(candidates) == 0 {
+			return pending, nil
+		}
+		afterID = candidates[len(candidates)-1].ID
+		for _, candidate := range candidates {
+			if _, ok := chaptarr.MatchByPath(chBooks, candidate.FilePath); ok {
+				pending++
+			}
+		}
+	}
+}

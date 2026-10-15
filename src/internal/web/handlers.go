@@ -759,40 +759,45 @@ func (s *Server) serverIntegrationsData(provider string) (map[string]any, error)
 	if err != nil {
 		return nil, err
 	}
+	chaptarrPending, err := s.ChaptarrReconciliationPending()
+	if err != nil {
+		return nil, err
+	}
 
 	queueState, queueUpdatedAt := s.enrichmentQueueStateData()
 	if queueState == "" {
 		queueState = "starting"
 	}
 	return map[string]any{
-		"Title":                      "Enhancement",
-		"AdminTab":                   "integrations",
-		"EnrichmentTab":              provider,
-		"HardcoverEnabled":           settings.HardcoverEnabled,
-		"HardcoverActive":            s.Hardcover.Enabled(),
-		"HardcoverConfigured":        settings.HardcoverToken != "",
-		"HideNoHardcoverMatch":       settings.HideNoHardcoverMatch,
-		"HardcoverOverwriteCover":    settings.HardcoverOverwriteCover,
-		"ChaptarrEnabled":            settings.ChaptarrEnabled,
-		"ChaptarrActive":             s.Chaptarr.Enabled(),
-		"ChaptarrURL":                settings.ChaptarrURL,
-		"ChaptarrConfigured":         settings.ChaptarrAPIKey != "",
-		"HideNoChaptarrMatch":        settings.HideNoChaptarrMatch,
-		"EnrichmentPending":          enrichmentStats.Pending,
-		"ConnectionPending":          connectionStats.Pending,
-		"ConnectionPendingTotal":     connectionStats.Pending + connectionStats.CoverCache,
-		"ConnectionNoMatch":          connectionStats.NoMatch,
-		"ConnectionErrored":          connectionStats.Errored,
-		"ConnectionErrorTotal":       connectionStats.Errored + connectionStats.CoverCacheFailed,
-		"ConnectionUnmatchedLocal":   connectionStats.UnmatchedLocal,
-		"ConnectionCoverCache":       connectionStats.CoverCache,
-		"ConnectionCoverCacheFailed": connectionStats.CoverCacheFailed,
-		"PendingTotal":               enrichmentStats.Pending + connectionStats.Pending,
-		"EnrichmentDone":             enrichmentStats.Done,
-		"EnrichmentNoMatch":          enrichmentStats.NoMatch,
-		"EnrichmentErrored":          enrichmentStats.Errored,
-		"EnrichmentQueueState":       queueState,
-		"EnrichmentQueueUpdatedAt":   queueUpdatedAt,
+		"Title":                         "Enrichment",
+		"AdminTab":                      "integrations",
+		"EnrichmentTab":                 provider,
+		"HardcoverEnabled":              settings.HardcoverEnabled,
+		"HardcoverActive":               s.Hardcover.Enabled(),
+		"HardcoverConfigured":           settings.HardcoverToken != "",
+		"HideNoHardcoverMatch":          settings.HideNoHardcoverMatch,
+		"HardcoverOverwriteCover":       settings.HardcoverOverwriteCover,
+		"ChaptarrEnabled":               settings.ChaptarrEnabled,
+		"ChaptarrActive":                s.Chaptarr.Enabled(),
+		"ChaptarrURL":                   settings.ChaptarrURL,
+		"ChaptarrConfigured":            settings.ChaptarrAPIKey != "",
+		"HideNoChaptarrMatch":           settings.HideNoChaptarrMatch,
+		"EnrichmentPending":             enrichmentStats.Pending + chaptarrPending,
+		"ChaptarrReconciliationPending": chaptarrPending,
+		"ConnectionPending":             connectionStats.Pending,
+		"ConnectionPendingTotal":        connectionStats.Pending + connectionStats.CoverCache,
+		"ConnectionNoMatch":             connectionStats.NoMatch,
+		"ConnectionErrored":             connectionStats.Errored,
+		"ConnectionErrorTotal":          connectionStats.Errored + connectionStats.CoverCacheFailed,
+		"ConnectionUnmatchedLocal":      connectionStats.UnmatchedLocal,
+		"ConnectionCoverCache":          connectionStats.CoverCache,
+		"ConnectionCoverCacheFailed":    connectionStats.CoverCacheFailed,
+		"PendingTotal":                  enrichmentStats.Pending + chaptarrPending + connectionStats.Pending,
+		"EnrichmentDone":                enrichmentStats.Done,
+		"EnrichmentNoMatch":             enrichmentStats.NoMatch,
+		"EnrichmentErrored":             enrichmentStats.Errored,
+		"EnrichmentQueueState":          queueState,
+		"EnrichmentQueueUpdatedAt":      queueUpdatedAt,
 	}, nil
 }
 
