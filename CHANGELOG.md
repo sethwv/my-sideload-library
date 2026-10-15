@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Consolidated password, digest, bookmark-link, and available email settings under the account pages.
 - Made password reset available only when an administrator enables it after configuring SMTP and a public URL.
 - Updated book cards with cover title overlays and abbreviated author names when space is limited.
+- Renamed the administrator metadata page to Enrichment.
 
 ### Security
 
@@ -33,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Restored Kobo quick shelf controls and shelf-selection icons, and prevented background search fields from receiving focus while a modal is open.
 - Allowed session cookies over HTTP for trusted LAN deployments.
 - Displayed background task failures in the administrator task list.
-- Supported scoped Hardcover API keys and paginated Chaptarr catalog refreshes, including downloaded ebooks with monitoring disabled. Manual Chaptarr metadata checks now use the cached catalog without rebuilding it.
+- Supported scoped Hardcover API keys and paginated Chaptarr catalog refreshes, including downloaded ebooks with monitoring disabled. Manual Chaptarr metadata checks now use the cached catalog without rebuilding it, and prior Chaptarr misses are reconciled after each refresh.
 - Routed the administrator menu to the first page available to the signed-in user's permissions.
 
 ## [v0.0.3] - 2026-10-02
