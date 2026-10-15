@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
@@ -111,6 +112,50 @@ func TestMergeChaptarrFields_ChaptarrWinsWhenBothHaveAField(t *testing.T) {
 	}
 	if len(f.Genres) != 1 || f.Genres[0] != "Fantasy" {
 		t.Errorf("Genres = %v, want Chaptarr's [Fantasy] to win", f.Genres)
+	}
+}
+
+func TestRunChaptarrSearch_UsesCachedCatalogWithoutRefresh(t *testing.T) {
+	var requests atomic.Int32
+	client := chaptarr.NewWithTransport(true, "http://chaptarr.test", "test-key", enrichmentRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		requests.Add(1)
+		var body string
+		switch r.URL.Path {
+		case "/api/v1/author":
+			body = `[{"id":1,"authorName":"Author"}]`
+		case "/api/v1/book/paged":
+			body = `{"records":[{"id":1,"authorId":1,"title":"Cached Book","hasFiles":true}],"totalCount":1}`
+		case "/api/v1/bookfile":
+			body = `[{"bookId":1,"path":"/library/Author/Cached Book.epub"}]`
+		default:
+			t.Fatalf("unexpected Chaptarr request: %s", r.URL)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+	}))
+	if _, err := client.RefreshBooks(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before := requests.Load()
+
+	data := map[string]any{}
+	server := &Server{Chaptarr: client}
+	server.runChaptarrSearch(context.Background(), data, 1, "Author/Cached Book.epub", "")
+
+	if got := requests.Load(); got != before {
+		t.Errorf("Chaptarr requests = %d, want %d; edit lookup must not refresh the catalog", got, before)
+	}
+	candidates, ok := data["Candidates"].([]matchCandidate)
+	if !ok || len(candidates) != 1 || candidates[0].Title != "Cached Book" {
+		t.Errorf("Candidates = %#v, want the cached Chaptarr match", data["Candidates"])
+	}
+}
+
+func TestRunChaptarrSearch_ReportsUnavailableCache(t *testing.T) {
+	data := map[string]any{}
+	server := &Server{Chaptarr: chaptarr.New(true, "http://chaptarr.test", "test-key")}
+	server.runChaptarrSearch(context.Background(), data, 1, "Author/Missing.epub", "")
+	if got, want := data["SearchError"], "Chaptarr catalog is not available yet."; got != want {
+		t.Errorf("SearchError = %#v, want %q", got, want)
 	}
 }
 

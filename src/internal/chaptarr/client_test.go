@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -85,6 +86,7 @@ func TestListBooks_AcceptsLargeBoundedCatalogPage(t *testing.T) {
 
 func TestListBooks_PaginatesCatalog(t *testing.T) {
 	var offsets []string
+	var catalogQuery url.Values
 	c := NewWithTransport(true, "http://chaptarr.test", "test-key", roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		body := "[]"
 		switch r.URL.Path {
@@ -93,6 +95,7 @@ func TestListBooks_PaginatesCatalog(t *testing.T) {
 		case "/api/v1/book/paged":
 			offset := r.URL.Query().Get("offset")
 			offsets = append(offsets, offset)
+			catalogQuery = r.URL.Query()
 			if offset == "0" {
 				body = `{"records":[{"id":1,"authorId":1,"hasFiles":false}],"totalCount":2}`
 			} else {
@@ -107,6 +110,15 @@ func TestListBooks_PaginatesCatalog(t *testing.T) {
 	}
 	if got := strings.Join(offsets, ","); got != "0,1" {
 		t.Errorf("page offsets = %q, want %q", got, "0,1")
+	}
+	if got, want := catalogQuery.Get("includeUnmonitored"), "true"; got != want {
+		t.Errorf("includeUnmonitored = %q, want %q", got, want)
+	}
+	if got, want := catalogQuery.Get("mediaType"), "ebook"; got != want {
+		t.Errorf("mediaType = %q, want %q", got, want)
+	}
+	if got, want := catalogQuery.Get("downloaded"), "true"; got != want {
+		t.Errorf("downloaded = %q, want %q", got, want)
 	}
 }
 

@@ -34,6 +34,7 @@ const DefaultCacheTTL = 12 * time.Hour
 const maxResponseBytes = 10 << 20
 const maxErrorResponseBytes = 4 << 10
 const catalogPageSize = 1000
+const catalogQuery = "includeUnmonitored=true&mediaType=ebook&downloaded=true"
 
 // Client is safe for concurrent use. baseURL/apiKey/enabled are mutable
 // (see SetConfig) so the admin Integrations page can turn Chaptarr on/off
@@ -317,13 +318,13 @@ func readErrorResponse(r io.Reader) (string, error) {
 	return strings.Join(strings.Fields(string(data)), " "), nil
 }
 
-// ListBooks fetches every book Chaptarr has an on-disk file for, with
-// author names resolved and file paths attached. This is a handful of
-// requests, not one per book: one for the full book list, one for the full
-// author list (build once, id->name lookup), then one GET /api/v1/bookfile
-// call per distinct author that has at least one book with files (that
-// endpoint requires an authorId/bookId filter, so it can't be fetched in a
-// single global call).
+// ListBooks fetches every on-disk ebook Chaptarr knows about, including books
+// whose ebook monitoring is disabled, with author names resolved and file
+// paths attached. This is a handful of requests, not one per book: one for
+// the filtered book list, one for the full author list (build once, id->name
+// lookup), then one GET /api/v1/bookfile call per distinct author that has at
+// least one book with files (that endpoint requires an authorId/bookId filter,
+// so it can't be fetched in a single global call).
 func (c *Client) ListBooks(ctx context.Context) ([]Book, error) {
 	var authorDocs []authorDocument
 	if err := c.get(ctx, "/api/v1/author", &authorDocs); err != nil {
@@ -400,7 +401,7 @@ func (c *Client) listBookPages(ctx context.Context) ([]bookDocument, error) {
 	var books []bookDocument
 	for offset := 0; ; {
 		var page pagedBookDocument
-		path := fmt.Sprintf("/api/v1/book/paged?offset=%d&pageSize=%d", offset, catalogPageSize)
+		path := fmt.Sprintf("/api/v1/book/paged?offset=%d&pageSize=%d&%s", offset, catalogPageSize, catalogQuery)
 		if err := c.get(ctx, path, &page); err != nil {
 			return nil, err
 		}

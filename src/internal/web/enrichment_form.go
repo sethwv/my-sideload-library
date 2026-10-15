@@ -136,10 +136,9 @@ func (s *Server) runHardcoverSearch(ctx context.Context, data map[string]any, id
 }
 
 func (s *Server) runChaptarrSearch(ctx context.Context, data map[string]any, id int64, filePath, selectedID string) {
-	books, err := s.Chaptarr.RefreshBooks(ctx)
-	if err != nil {
-		log.Printf("edit-metadata chaptarr list failed for book %d: %v", id, err)
-		data["SearchError"] = "Chaptarr lookup failed."
+	books, _ := s.Chaptarr.CachedBooks()
+	if len(books) == 0 {
+		data["SearchError"] = "Chaptarr catalog is not available yet."
 		return
 	}
 	match, ok := chaptarr.MatchByPath(books, filePath)
