@@ -133,6 +133,34 @@ func (d *DB) BooksMissingHardcoverID(limit int) ([]EnrichmentCandidate, error) {
 	return books, rows.Err()
 }
 
+// BooksWithChaptarrNoMatch returns a stable batch of books that previously
+// lacked a Chaptarr path match. Callers can re-evaluate these after a catalog
+// refresh expands or repairs the provider snapshot.
+func (d *DB) BooksWithChaptarrNoMatch(afterID int64, limit int) ([]EnrichmentCandidate, error) {
+	if limit < 1 {
+		limit = 100
+	}
+	rows, err := d.sql.Query(`SELECT b.id, b.title, b.author, COALESCE(b.identifier, ''), b.file_path, b.added_at
+		FROM books b JOIN book_enrichment be ON be.book_id = b.id
+		WHERE be.chaptarr_status = 'no_match' AND b.id > ?
+		ORDER BY b.id LIMIT ?`, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list Chaptarr no-match books: %w", err)
+	}
+	defer rows.Close()
+	var books []EnrichmentCandidate
+	for rows.Next() {
+		var book EnrichmentCandidate
+		var addedAt int64
+		if err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.Identifier, &book.FilePath, &addedAt); err != nil {
+			return nil, err
+		}
+		book.AddedAt = time.Unix(addedAt, 0)
+		books = append(books, book)
+	}
+	return books, rows.Err()
+}
+
 // SetEnrichmentStatus records the outcome of an enrichment attempt for a
 // book, so it isn't retried every scan/queue pass. Valid statuses: "done",
 // "no_match", "error".

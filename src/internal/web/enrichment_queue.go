@@ -87,15 +87,18 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		var knownHardcoverMatches map[string]hardcover.Match
 		var knownHardcoverDetails map[string]hardcover.Detail
 		knownHardcoverLookedUp := false
+		waitingForChaptarr := false
 		if s.Chaptarr.Enabled() {
 			chBooks, chaptarrRefreshedAt = s.Chaptarr.CachedBooks()
 			if len(chBooks) > 0 {
 				s.backfillHardcoverIDsFromChaptarr(chBooks)
 			}
 			if chaptarrRefreshedAt.IsZero() || !chaptarrRefreshedAt.Add(chaptarr.DefaultCacheTTL).After(time.Now()) {
-				// A stale catalog only disables path matching. It must not block
-				// connected items or otherwise eligible Hardcover work.
+				// Chaptarr has precedence over Hardcover, so wait for its catalog
+				// before assigning fallback results to local library books.
 				chBooks = nil
+				candidates = nil
+				waitingForChaptarr = true
 			}
 		}
 		if s.Hardcover.Enabled() && chBooks != nil {
@@ -155,6 +158,9 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		}
 
 		if !processedAny {
+			if waitingForChaptarr {
+				logState("waiting for a current Chaptarr catalog")
+			}
 			sleepOrDone(ctx, idlePollInterval)
 		}
 	}

@@ -179,9 +179,13 @@ func main() {
 		if !ch.Enabled() {
 			return nil
 		}
-		_, err := ch.RefreshBooks(ctx)
+		if _, err := ch.RefreshBooks(ctx); err != nil {
+			return err
+		}
+		_, _, err := taskManager.Enqueue("chaptarr-reconcile")
 		return err
 	})
+	taskManager.Register(tasks.Task{Key: "chaptarr-reconcile", Name: "Reconcile Chaptarr matches", Kind: tasks.KindJob, Runnable: true, NextRun: "After catalog refresh & On-Demand"}, srv.ReconcileChaptarrMatches)
 	taskManager.Register(tasks.Task{Key: "filesystem-watcher", Name: "Filesystem watcher", Kind: tasks.KindService}, nil)
 	taskManager.Register(tasks.Task{Key: "enrichment-queue", Name: "Enrichment queue", Kind: tasks.KindService}, nil)
 	taskManager.Register(tasks.Task{Key: "chaptarr-refresh-scheduler", Name: "Chaptarr refresh scheduler", Kind: tasks.KindService}, nil)

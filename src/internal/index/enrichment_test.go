@@ -58,6 +58,36 @@ func TestBooksMissingHardcoverIDAllowsNullIdentifier(t *testing.T) {
 	}
 }
 
+func TestBooksWithChaptarrNoMatch_PaginatesOnlyNoMatchRecords(t *testing.T) {
+	libDir := t.TempDir()
+	writeTestEpub(t, filepath.Join(libDir, "one.epub"), "One", "Author")
+	writeTestEpub(t, filepath.Join(libDir, "two.epub"), "Two", "Author")
+	writeTestEpub(t, filepath.Join(libDir, "three.epub"), "Three", "Author")
+	db := openTestDB(t)
+	if err := db.Scan([]string{libDir}, nil); err != nil {
+		t.Fatal(err)
+	}
+	books, err := db.List(SortTitle, false, 1, 10, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetChaptarrStatus(books[0].ID, "no_match"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetChaptarrStatus(books[2].ID, "no_match"); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates, err := db.BooksWithChaptarrNoMatch(0, 1)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("first batch = %#v, %v", candidates, err)
+	}
+	candidates, err = db.BooksWithChaptarrNoMatch(candidates[0].ID, 10)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("second batch = %#v, %v", candidates, err)
+	}
+}
+
 func TestBooksNeedingEnrichment_RetriesErrorsOnlyWhenDue(t *testing.T) {
 	libDir := t.TempDir()
 	writeTestEpub(t, filepath.Join(libDir, "b1.epub"), "Retry Me", "Amy Zed")

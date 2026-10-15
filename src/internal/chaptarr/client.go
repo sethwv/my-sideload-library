@@ -35,6 +35,7 @@ const maxResponseBytes = 10 << 20
 const maxErrorResponseBytes = 4 << 10
 const catalogPageSize = 1000
 const catalogQuery = "includeUnmonitored=true&mediaType=ebook&downloaded=true"
+const catalogCacheVersion = "v2"
 
 // Client is safe for concurrent use. baseURL/apiKey/enabled are mutable
 // (see SetConfig) so the admin Integrations page can turn Chaptarr on/off
@@ -148,7 +149,7 @@ func (c *Client) cacheScopeLocked() string {
 	if c.baseURL == "" || c.apiKey == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte(c.baseURL))
+	sum := sha256.Sum256([]byte(catalogCacheVersion + "\x00" + c.baseURL))
 	return fmt.Sprintf("%x", sum[:])
 }
 
