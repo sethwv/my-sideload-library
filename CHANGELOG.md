@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Added private, shared, and public shelves with member management, configurable creation limits, and administrator shelf management.
 - Added quick Favourites, Recent, and full shelf-picker controls to book details, including shelf downloads in EPUB and KEPUB formats.
 - Added self-service email settings.
+- Added Goodreads connected shelves that import selected source shelves, retain source ordering, match local books, and enrich unmatched items with Hardcover metadata and cached covers.
+- Added selected-shelf enrichment controls, retry actions, and queue status for connected shelves.
 
 ### Changed
 
@@ -31,7 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Restored Kobo quick shelf controls and shelf-selection icons, and prevented background search fields from receiving focus while a modal is open.
 - Allowed session cookies over HTTP for trusted LAN deployments.
 - Displayed background task failures in the administrator task list.
-- Supported scoped Hardcover API keys and paginated large Chaptarr catalog refreshes.
+- Supported scoped Hardcover API keys and paginated Chaptarr catalog refreshes, including downloaded ebooks with monitoring disabled. Manual Chaptarr metadata checks now use the cached catalog without rebuilding it.
 - Routed the administrator menu to the first page available to the signed-in user's permissions.
 
 ## [v0.0.3] - 2026-10-02
