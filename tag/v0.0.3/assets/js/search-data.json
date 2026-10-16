@@ -1,0 +1,436 @@
+{"0": {
+    "doc": "Account",
+    "title": "Account",
+    "content": "Open the account menu from the top navigation to change the reading appearance or reach account actions. ",
+    "url": "/tag/v0.0.3/user-guide/account-and-access.html",
+    
+    "relUrl": "/user-guide/account-and-access.html"
+  },"1": {
+    "doc": "Account",
+    "title": "Choose an appearance",
+    "content": "Select Auto, Light, or Dark in the account menu. | Auto follows the browser’s system preference when available. | Light keeps the light application appearance. | Dark keeps the dark application appearance. | . The choice is stored in a browser cookie for up to a year. It applies on the device and browser where you set it, not to every device using the account. Appearance controls The account menu controls for Auto, Light, and Dark appearances. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/account-and-access.html#choose-an-appearance",
+    
+    "relUrl": "/user-guide/account-and-access.html#choose-an-appearance"
+  },"2": {
+    "doc": "Account",
+    "title": "Change your password or weekly digest",
+    "content": "Select Change password from the account menu to set a new password. Enter the current password, choose the new one, then select Change password. Use a password you do not reuse elsewhere. The same page has the New-book digest preference. Enable it and select Save to receive a weekly list of books added to the library. The library administrator must configure outbound email before the digest can be delivered. If you forgot your password, use the sign-in page’s password-reset flow. That flow also requires the administrator to configure SMTP and the public HTTPS URL. Contact the library administrator if the reset email does not arrive. Account preferences Password and new-book digest controls, with the relevant fields highlighted. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/account-and-access.html#change-your-password-or-weekly-digest",
+    
+    "relUrl": "/user-guide/account-and-access.html#change-your-password-or-weekly-digest"
+  },"3": {
+    "doc": "Account",
+    "title": "Create an e-reader bookmark link",
+    "content": "If the account menu offers Bookmark link, it can create one passwordless link for an e-reader browser that does not retain cookies between sessions. | Open the account menu and select Bookmark link. | Select Create bookmark link. | When the library opens, use the e-reader browser’s own bookmark command immediately. | . E-reader bookmark link The account control for creating a passwordless e-reader bookmark link. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Treat this link as a password. Anyone who has it can use the library as your account. The link is shown only in the browser address bar after it is created. Creating or regenerating a link invalidates the old one straight away. Do not send a bookmark link in email, chat, or a shared note. Bookmark sessions can browse the library and use shelves, but cannot change account settings or use administration. Select Log in from the account menu to regain a full session. ",
+    "url": "/tag/v0.0.3/user-guide/account-and-access.html#create-an-e-reader-bookmark-link",
+    
+    "relUrl": "/user-guide/account-and-access.html#create-an-e-reader-bookmark-link"
+  },"4": {
+    "doc": "Admin CLI",
+    "title": "Admin CLI",
+    "content": "The local sideload-library admin command is a break-glass tool for the server operator. Use it when the web interface cannot restore access, such as when every administrator password is lost. It changes the same users.db used by the application, so stop the server before running it. ",
+    "url": "/tag/v0.0.3/user-guide/admin-cli.html",
+    
+    "relUrl": "/user-guide/admin-cli.html"
+  },"5": {
+    "doc": "Admin CLI",
+    "title": "Reset a user’s password",
+    "content": "Run the command with the application’s DATA_DIR, account username, and a replacement password. read -rsp \"Password: \" password; echo DATA_DIR=/var/lib/sideload-library sideload-library admin reset-password admin \"$password\" unset password . The command does not start the web server or print the password. Use a private terminal and avoid placing passwords directly in shell history, process managers, or shared scripts. ",
+    "url": "/tag/v0.0.3/user-guide/admin-cli.html#reset-a-users-password",
+    
+    "relUrl": "/user-guide/admin-cli.html#reset-a-users-password"
+  },"6": {
+    "doc": "Admin CLI",
+    "title": "Create a recovery user",
+    "content": "Create an account when no existing administrator can sign in. The optional role is one of member, user_manager, server_manager, or admin; use admin only for a trusted recovery account. read -rsp \"Password: \" password; echo DATA_DIR=/var/lib/sideload-library sideload-library admin create-user recovery-admin \"$password\" admin unset password . Use a private terminal and avoid placing passwords directly in shell history, process managers, or shared scripts. After access is restored, remove temporary recovery accounts from Admin if they are no longer needed. The command has full local access to the user database. Restrict server and data-directory access to trusted operators, and always stop the service before running it. ",
+    "url": "/tag/v0.0.3/user-guide/admin-cli.html#create-a-recovery-user",
+    
+    "relUrl": "/user-guide/admin-cli.html#create-a-recovery-user"
+  },"7": {
+    "doc": "Admin",
+    "title": "Admin",
+    "content": "Open the account menu and select Admin to manage users or server functions. What you can see depends on your role. | Role | Access | . | Member | Browse the library and use personal account features. | . | User Manager | Manage users, roles, invitations, and bookmark-link permission. | . | Server Manager | Manage the server, settings, email, integrations, and library metadata. | . | Admin | All user and server management functions. | . ",
+    "url": "/tag/v0.0.3/user-guide/administrator-access.html",
+    
+    "relUrl": "/user-guide/administrator-access.html"
+  },"8": {
+    "doc": "Admin",
+    "title": "Choose the right role",
+    "content": "Members read books and manage their own account. User Managers handle people, invitations, roles, and bookmark permission. Server Managers maintain the application. Admins have both sets of permissions. Manage user access Role and bookmark-link permission controls for an existing user. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/administrator-access.html#choose-the-right-role",
+    
+    "relUrl": "/user-guide/administrator-access.html#choose-the-right-role"
+  },"9": {
+    "doc": "Admin",
+    "title": "Add a member",
+    "content": ". | Sign in as an Admin or User Manager and open Admin. | Select the Users tab and choose Add user. | Enter a username and password, leave the role as Member, then select Create user. | Give the user their initial password through a private channel. | . Add an email address if the user should be able to reset their password. The email field is optional when creating a user, but self-service password reset needs both an address and working server email settings. Add a user The user-creation form for a new library member. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/administrator-access.html#add-a-member",
+    
+    "relUrl": "/user-guide/administrator-access.html#add-a-member"
+  },"10": {
+    "doc": "Admin",
+    "title": "Manage access",
+    "content": "Use Manage beside an existing user to change their role, grant or revoke bookmark-link access, update their email address, reset their password, or delete their account. Give the lowest role that allows the user to do their work. A User Manager cannot manage server configuration, while a Server Manager cannot manage users. Manage user access Role and bookmark-link permission controls for an existing user. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/administrator-access.html#manage-access",
+    
+    "relUrl": "/user-guide/administrator-access.html#manage-access"
+  },"11": {
+    "doc": "Admin",
+    "title": "Invite a user by email",
+    "content": "To send an invitation, select Invite by email, provide the username, email address, and role, then send it. Invitations need SMTP and a public HTTPS URL. Configure and test those first in Server. Invite a user The email invitation form and role selection. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Pending invitations can be resent from the user’s Manage panel. Once a user has accepted an invitation, that panel provides an administrator password-reset action instead. Deleting a user removes their access. Check that the account is no longer needed before selecting Delete user. On first startup, the application presents a one-time setup page to create the first administrator account and signs that account in automatically. If access is lost later, stop the application and run sideload-library admin reset-password &lt;username&gt; &lt;password&gt; with the same DATA_DIR; the break-glass command sets the supplied password without starting the server. See Deployment for platform-specific commands. ",
+    "url": "/tag/v0.0.3/user-guide/administrator-access.html#invite-a-user-by-email",
+    
+    "relUrl": "/user-guide/administrator-access.html#invite-a-user-by-email"
+  },"12": {
+    "doc": "Browse",
+    "title": "Browse",
+    "content": "The Library is the home page after you sign in. It searches the books indexed from the EPUB folders configured during Deployment. ",
+    "url": "/tag/v0.0.3/user-guide/browse-and-download.html",
+    
+    "relUrl": "/user-guide/browse-and-download.html"
+  },"13": {
+    "doc": "Browse",
+    "title": "Find and download a book",
+    "content": ". | Enter a title, author, or series in the search field and select Search. | Open a book by selecting its cover. | Select Download EPUB for the original file, or Download KEPUB for a Kobo-oriented copy. | . An EPUB download is the exact source file. A KEPUB download is converted when requested, so it can take longer for a large book. If your reading application accepts ordinary EPUB files, use EPUB. Use KEPUB when you specifically want Kobo’s KEPUB behavior. Download a book The EPUB and KEPUB download controls in a book's details. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/browse-and-download.html#find-and-download-a-book",
+    
+    "relUrl": "/user-guide/browse-and-download.html#find-and-download-a-book"
+  },"14": {
+    "doc": "Browse",
+    "title": "Search and browse the library",
+    "content": ". | Use Sort by to order results by title, author, series, date added, or release date. The adjacent ascending/descending control reverses the selected order. | The page selector and arrows move through long result lists while preserving the search and sort choice. | Select an author or series from a book’s details to browse that group. The Authors and Series navigation entries also open their complete indexes. | A book-detail link includes a book value in the address, so you can keep the page open or share the library search URL with a signed-in user. Access to the book still requires an authorized session. | . Search and sorting Search and sort controls for narrowing the library. Desktop, 1440 x 810 Portrait Device, 768 x 1024 The details panel also has author and series shortcuts, saved shelves, a description when the EPUB or enrichment data provides one, and the indexed file location. The location identifies which configured library folder supplied the book. It is informational only, not a file-browser link. Metadata and cover corrections are administrator functions. See the Metadata and integrations guide when it is available rather than editing source EPUB files from this screen. ",
+    "url": "/tag/v0.0.3/user-guide/browse-and-download.html#search-and-browse-the-library",
+    
+    "relUrl": "/user-guide/browse-and-download.html#search-and-browse-the-library"
+  },"15": {
+    "doc": "Browser Limitations",
+    "title": "Browser Limitations",
+    "content": "The primary target is Kobo’s built-in browser, a roughly 2015-era QtWebKit engine. The behavior below is confirmed on project hardware. Modern browser testing is useful for regressions, but it does not certify an e-reader browser. ",
+    "url": "/tag/v0.0.3/technical/browser-limitations.html",
+    
+    "relUrl": "/technical/browser-limitations.html"
+  },"16": {
+    "doc": "Browser Limitations",
+    "title": "Layout and styling",
+    "content": ". | No Flexbox or CSS Grid. The application uses CSS2.1-era inline blocks and tables for layout. Do not assume modern CSS Grid support on a Kobo device. | No aspect-ratio. Cover ratios use a padding-based wrapper instead. | No CSS custom properties. Declarations using var() are discarded by the target engine, so application styles use literal values. See MDN’s custom properties guide. | Child scrollbars can hide their own text. The application relies on normal page scrolling and avoids overflow: auto or overflow: scroll on child elements. | . ",
+    "url": "/tag/v0.0.3/technical/browser-limitations.html#layout-and-styling",
+    
+    "relUrl": "/technical/browser-limitations.html#layout-and-styling"
+  },"17": {
+    "doc": "Browser Limitations",
+    "title": "JavaScript and interaction",
+    "content": ". | No Web Storage. localStorage and sessionStorage are unavailable, so appearance preference uses a cookie. See the Web Storage API. | Use ES5 syntax and XMLHttpRequest. Modern syntax and the Fetch API are not safe assumptions. The small interactions that require asynchronous requests use XMLHttpRequest. | CSS :target is unreliable for modals. Book and account modals use explicit click handlers rather than the :target pseudo-class. | Native select popups are fragile. Appearance controls use buttons instead of a native select. | . ",
+    "url": "/tag/v0.0.3/technical/browser-limitations.html#javascript-and-interaction",
+    
+    "relUrl": "/technical/browser-limitations.html#javascript-and-interaction"
+  },"18": {
+    "doc": "Browser Limitations",
+    "title": "Navigation and caching",
+    "content": ". | GET responses can appear stale. The server sends Cache-Control: no-cache for HTML pages to avoid aggressive old-browser caching of search and sort URLs. | Hardware testing remains necessary. There is no faithful QtWebKit simulator. Test CSS and JavaScript changes on a real device before treating them as compatible. | . These constraints apply to the application served by my-sideload-library. The public documentation site may use modern browser enhancements such as the screenshot lightbox. ",
+    "url": "/tag/v0.0.3/technical/browser-limitations.html#navigation-and-caching",
+    
+    "relUrl": "/technical/browser-limitations.html#navigation-and-caching"
+  },"19": {
+    "doc": "Debian Linux",
+    "title": "Debian Linux",
+    "content": "Download the package matching the machine architecture from the GitHub release: sideload-library_&lt;version&gt;_linux_amd64.deb for x86-64 or sideload-library_&lt;version&gt;_linux_arm64.deb for 64-bit ARM. Install it with: . sudo apt install ./sideload-library_&lt;version&gt;_linux_amd64.deb . The package installs the executable at /usr/bin/sideload-library. It intentionally does not create a user, service, or configuration because library locations and credentials are installation-specific. The following creates a dedicated system user and persistent directories for a systemd deployment: . sudo useradd --system --create-home --home-dir /var/lib/sideload-library --shell /usr/sbin/nologin sideload-library sudo install -d -o sideload-library -g sideload-library -m 0750 /etc/sideload-library . Create /etc/sideload-library/sideload-library.env with the required paths. The sideload-library user must be able to read LIBRARY_PATH and write DATA_DIR. LIBRARY_PATH=/srv/epubs DATA_DIR=/var/lib/sideload-library PORT=8080 . Protect the file because it controls the service configuration: . sudo chown root:sideload-library /etc/sideload-library/sideload-library.env sudo chmod 640 /etc/sideload-library/sideload-library.env . Then create /etc/systemd/system/sideload-library.service: . [Unit] Description=my-sideload-library After=network-online.target Wants=network-online.target [Service] User=sideload-library Group=sideload-library EnvironmentFile=/etc/sideload-library/sideload-library.env ExecStart=/usr/bin/sideload-library Restart=on-failure [Install] WantedBy=multi-user.target . Enable and start the service: . sudo systemctl daemon-reload sudo systemctl enable --now sideload-library sudo systemctl status sideload-library . EnvironmentFile is systemd’s supported way to load the .env-style file. Do not pass this file directly to the executable; it only reads variables inherited from its process environment. The first service startup presents a one-time setup page for creating the first administrator. To recover access later, stop the service and run sudo -u sideload-library DATA_DIR=/var/lib/sideload-library /usr/bin/sideload-library admin reset-password &lt;username&gt; &lt;password&gt;; it sets the supplied password without running the server. ",
+    "url": "/tag/v0.0.3/deployment/debian.html",
+    
+    "relUrl": "/deployment/debian.html"
+  },"20": {
+    "doc": "Docker",
+    "title": "Docker",
+    "content": "Release images are published to: . ghcr.io/sethwv/my-sideload-library:latest . Development builds use &lt;branch&gt; and immutable &lt;branch&gt;-&lt;short-sha&gt; tags, such as main-a1b2c3d. Versioned releases also publish exact semantic-version and major/minor tags. Use the repository’s docker-compose.yml with an ignored docker-compose.override.yml for the host library directory: . services: sideload-library: volumes: - /path/to/epubs:/library:ro . Start it with: . docker compose up -d . On first startup, open the application to create the first administrator account in the one-time setup page. The override file is ignored by Git. Docker Compose’s project .env file only performs variable substitution unless the Compose configuration passes values into the container, so use the environment block above for application configuration when needed. ",
+    "url": "/tag/v0.0.3/deployment/docker.html",
+    
+    "relUrl": "/deployment/docker.html"
+  },"21": {
+    "doc": "Favourites",
+    "title": "Favourites",
+    "content": "Favourites is the built-in personal shelf. It is useful for keeping a short reading list without changing the EPUB folders on the server. ",
+    "url": "/tag/v0.0.3/user-guide/favourites.html",
+    
+    "relUrl": "/user-guide/favourites.html"
+  },"22": {
+    "doc": "Favourites",
+    "title": "Add a book to Favourites",
+    "content": ". | Open a book from the Library. | In the Shelves section, select Favourites. | Open Shelves in the top navigation, then select Favourites to see saved books. | . Select Favourites again in the book details to remove the book. Removing it while viewing Favourites also removes the card from that page immediately. Save a favourite The shelf control in a book's details, highlighted for adding a book to Favourites. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/favourites.html#add-a-book-to-favourites",
+    
+    "relUrl": "/user-guide/favourites.html#add-a-book-to-favourites"
+  },"23": {
+    "doc": "Favourites",
+    "title": "Find your saved books",
+    "content": "Open Shelves in the top navigation, then select Favourites. The page shows only the books saved to your Favourites shelf. Select Favourites again from a book’s details to remove it. Removing a book while viewing Favourites also removes the card from that page immediately. Favourite books Books saved to the built-in Favourites shelf. Desktop, 1440 x 810 Portrait Device, 768 x 1024 The application currently provides Favourites as its user-facing shelf workflow. It does not provide controls to create, rename, delete, or directly browse arbitrary shelves. ",
+    "url": "/tag/v0.0.3/user-guide/favourites.html#find-your-saved-books",
+    
+    "relUrl": "/user-guide/favourites.html#find-your-saved-books"
+  },"24": {
+    "doc": "User Guide",
+    "title": "User Guide",
+    "content": "Use this guide after the library is running. It covers the application itself: finding and downloading books, account preferences, bookmark links for e-readers, and administrator workflows for users, server settings, tasks, email, metadata, and integrations. Start with the smallest workflow that solves your immediate need. Each guide page then covers advanced configuration, security considerations, and recovery steps where they apply. Deployment, persistent storage, HTTPS, and environment variables remain in Deployment. Device and browser constraints are covered in Technical. ",
+    "url": "/tag/v0.0.3/user-guide/",
+    
+    "relUrl": "/user-guide/"
+  },"25": {
+    "doc": "Technical",
+    "title": "Technical",
+    "content": " ",
+    "url": "/tag/v0.0.3/technical/",
+    
+    "relUrl": "/technical/"
+  },"26": {
+    "doc": "Project",
+    "title": "Project",
+    "content": " ",
+    "url": "/tag/v0.0.3/project/",
+    
+    "relUrl": "/project/"
+  },"27": {
+    "doc": "Deployment",
+    "title": "Deployment",
+    "content": "my-sideload-library can run in Docker, directly on macOS or Windows, or from a Debian package on 64-bit x86 and ARM Linux. Choose a platform from the navigation to get started. ",
+    "url": "/tag/v0.0.3/deployment/",
+    
+    "relUrl": "/deployment/"
+  },"28": {
+    "doc": "Deployment",
+    "title": "Persistent data",
+    "content": "Keep DATA_DIR on persistent storage. It contains the SQLite index, user database, cover cache, and application settings. The source EPUB directories can remain read-only. ",
+    "url": "/tag/v0.0.3/deployment/#persistent-data",
+    
+    "relUrl": "/deployment/#persistent-data"
+  },"29": {
+    "doc": "Deployment",
+    "title": "Public URLs and email",
+    "content": "Set PUBLIC_URL to the externally reachable HTTPS URL when password-reset or invitation email is enabled. This prevents emailed links from being constructed from a client-controlled request host. ",
+    "url": "/tag/v0.0.3/deployment/#public-urls-and-email",
+    
+    "relUrl": "/deployment/#public-urls-and-email"
+  },"30": {
+    "doc": "Deployment",
+    "title": "HTTPS",
+    "content": "Serve the application through an HTTPS reverse proxy. The application listens on HTTP at PORT for the proxy, but all session cookies are marked Secure and browsers will only send them to the HTTPS public endpoint. ",
+    "url": "/tag/v0.0.3/deployment/#https",
+    
+    "relUrl": "/deployment/#https"
+  },"31": {
+    "doc": "Deployment",
+    "title": "Configuration",
+    "content": "| Variable | Default | Purpose | . | LIBRARY_PATH | /library | Comma-separated EPUB directories | . | DATA_DIR | /data | Writable application data | . | SESSION_SECRET | Empty | Runtime session-cookie signing-key override | . | PORT | 8080 | HTTP listen port | . | SITE_NAME | sideload-library | Display name | . | COVER_WIDTH | 300 | Cover thumbnail width in pixels | . | PAGE_SIZE | 48 | Books per page | . | SESSION_TTL | 720h | Login-session lifetime | . | HARDCOVER_API_TOKEN | Empty | One-time Hardcover integration bootstrap token | . | PUBLIC_URL | Empty | Trusted URL for emailed links | . For the full development environment and contribution terms, see CONTRIBUTING.md. On first startup, the application displays a one-time setup page for creating the first administrator account, then signs that account in. It also generates and persists a session signing secret in DATA_DIR/users.db. Set SESSION_SECRET only when an operational override is needed. The override is not stored, and changing it invalidates existing sessions. If an administrator password is lost, stop the application and run sideload-library admin reset-password &lt;username&gt; &lt;password&gt; with the same DATA_DIR. It sets the supplied password without starting the server. The same local break-glass CLI can create an account when necessary: sideload-library admin create-user &lt;username&gt; &lt;password&gt; [role]. ",
+    "url": "/tag/v0.0.3/deployment/#configuration",
+    
+    "relUrl": "/deployment/#configuration"
+  },"32": {
+    "doc": "Screenshots",
+    "title": "Screenshots",
+    "content": "Sign in The minimal sign-in page used on desktop and e-reader browsers. Desktop, 1440 x 810 Portrait Device, 768 x 1024 First administrator setup The one-time registration page shown before the library has any user accounts. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Library grid A populated library with search, sort controls, covers, and pagination. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Library grid, dark mode The same library view with the persisted dark appearance selected. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Book details A book's download, author, series, and shelf actions in the detail modal. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Authors The author index groups the generated library by creator. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Series The series index makes related books easy to browse. Desktop, 1440 x 810 Portrait Device, 768 x 1024 User administration The administrator view for managing library accounts. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Server settings Admin controls for the server's general settings. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Background tasks Queued maintenance work, scheduled email delivery, and continuous services. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/screenshots/",
+    
+    "relUrl": "/screenshots/"
+  },"33": {
+    "doc": "Home",
+    "title": "",
+    "content": "Get started Download releases View source ",
+    "url": "/tag/v0.0.3/",
+    
+    "relUrl": "/"
+  },"34": {
+    "doc": "Home",
+    "title": "Your Files",
+    "content": "Index one or many folders of EPUB files. Metadata and covers come directly from each book, with optional enrichment from Chaptarr and/or Hardcover. ",
+    "url": "/tag/v0.0.3/",
+    
+    "relUrl": "/"
+  },"35": {
+    "doc": "Home",
+    "title": "Built for e-readers",
+    "content": "Scalable pages with generous tap targets, and deliberately conservative browser support keep the site usable on Kobo's older WebKit browser. ",
+    "url": "/tag/v0.0.3/",
+    
+    "relUrl": "/"
+  },"36": {
+    "doc": "Home",
+    "title": "Run Your Way",
+    "content": "Deploy with Docker, a Windows x64 executable, or Debian packages for x64 and 64-bit ARM Linux. | Complatible with web-browser equipped Kobo devices | Reads book metadata and covers directly from EPUB files | Watches one or more library directories as read-only | Supports multiple users, admin controls, favourites | Converts EPUBs to KEPUB on demand | Supports Hardcover &amp; Chaptarr Integrations | . Library grid A populated library with search, sort controls, covers, and pagination. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Library grid, dark mode The same library view with the persisted dark appearance selected. Desktop, 1440 x 810 Portrait Device, 768 x 1024 More screenshots . ",
+    "url": "/tag/v0.0.3/",
+    
+    "relUrl": "/"
+  },"37": {
+    "doc": "Home",
+    "title": "Home",
+    "content": " ",
+    "url": "/tag/v0.0.3/",
+    
+    "relUrl": "/"
+  },"38": {
+    "doc": "macOS",
+    "title": "macOS",
+    "content": "Download the executable for your Mac from the GitHub release: sideload-library_&lt;version&gt;_darwin_arm64 for Apple Silicon, or sideload-library_&lt;version&gt;_darwin_amd64 for Intel Macs. Save it outside the application data directory, then make it executable: . chmod +x sideload-library_&lt;version&gt;_darwin_arm64 . Create a persistent data directory and launch the server with the required configuration: . mkdir -p \"$HOME/Library/Application Support/sideload-library\" LIBRARY_PATH=\"$HOME/Books\" \\ DATA_DIR=\"$HOME/Library/Application Support/sideload-library\" \\ PORT=8080 \\ ./sideload-library_&lt;version&gt;_darwin_arm64 . Replace darwin_arm64 with darwin_amd64 on Intel Macs. Put the process behind an HTTPS reverse proxy before signing in because session cookies require HTTPS. For an always-on installation, run the executable with a launchd service. macOS may block an unsigned executable that was downloaded from the internet. After attempting to open it, go to System Settings &gt; Privacy &amp; Security, scroll to the bottom, and choose Open Anyway. The first launch displays a one-time setup page to create the first administrator. To reset a password without starting the server, use the same data directory: . DATA_DIR=\"$HOME/Library/Application Support/sideload-library\" \\ ./sideload-library_&lt;version&gt;_darwin_arm64 admin reset-password admin &lt;password&gt; . ",
+    "url": "/tag/v0.0.3/deployment/macos.html",
+    
+    "relUrl": "/deployment/macos.html"
+  },"39": {
+    "doc": "Metadata",
+    "title": "Metadata",
+    "content": "The Enhancement admin tab can enrich indexed EPUB metadata with Chaptarr or Hardcover. It is optional. A library remains usable with the metadata and covers found in its EPUB files. ",
+    "url": "/tag/v0.0.3/user-guide/metadata-and-integrations.html",
+    
+    "relUrl": "/user-guide/metadata-and-integrations.html"
+  },"40": {
+    "doc": "Metadata",
+    "title": "Connect an enrichment provider",
+    "content": "For Chaptarr, open Enhancement, provide its base URL and API key, enable the provider, then save. For Hardcover, obtain an API token from Hardcover, select the Hardcover tab, paste the token, enable the provider, then save. After configuration, the queue reports books that are pending, completed, unmatched, or errored. Start with one provider and confirm its results before enabling additional options. When both providers are enabled, Chaptarr is matched first. If its matching record includes a Hardcover ID, the application uses that ID to retrieve Hardcover details for fields Chaptarr does not provide, while keeping Chaptarr as the enrichment source. This avoids a second title-and-author match against Hardcover. Hardcover enrichment The Hardcover token and provider configuration controls. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/metadata-and-integrations.html#connect-an-enrichment-provider",
+    
+    "relUrl": "/user-guide/metadata-and-integrations.html#connect-an-enrichment-provider"
+  },"41": {
+    "doc": "Metadata",
+    "title": "Control matching and visibility",
+    "content": "Hide unmatched removes books that do not match the selected provider from the library view. Enable it only when the provider is authoritative for the collection, since an unmatched book can otherwise appear to have disappeared. With Hardcover, Use Hardcover covers replaces source EPUB covers with provider covers. Leave it disabled when the original EPUB covers are preferred. Use Reset enrichment to queue the collection again after changing provider configuration or when you need to retry matching. Review queue errors before repeatedly resetting it, especially if the provider endpoint or token may be unavailable. Chaptarr enrichment Chaptarr matching and unmatched-book visibility controls. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/metadata-and-integrations.html#control-matching-and-visibility",
+    
+    "relUrl": "/user-guide/metadata-and-integrations.html#control-matching-and-visibility"
+  },"42": {
+    "doc": "Metadata",
+    "title": "Edit one book",
+    "content": "Administrators can open a book’s details and select Edit Metadata. The page supports automatic and manual provider searches, selecting a candidate, looking up a Chaptarr path, and directly correcting title, series, index, release date, publisher, page count, ISBN, rating, genres, description, and cover behavior. Use the manual fields to correct a single known record rather than repeatedly changing global provider settings. Confirm the result in the book details after saving. Metadata editing is visible in the current UI only to Admin users, even though Server Managers can manage the broader enrichment configuration. Edit metadata The manual metadata form, highlighted for correcting a book's details. Desktop, 1440 x 810 Portrait Device, 768 x 1024 Provider tokens and API keys grant access to external services. Do not include them in screenshots, support requests, or shared configuration files. ",
+    "url": "/tag/v0.0.3/user-guide/metadata-and-integrations.html#edit-one-book",
+    
+    "relUrl": "/user-guide/metadata-and-integrations.html#edit-one-book"
+  },"43": {
+    "doc": "Quick Start",
+    "title": "Quick Start",
+    "content": "Docker is the quickest way to run my-sideload-library. Your EPUB files remain mounted read-only, while its index and user database live in a named Docker volume. For Windows and Debian package installation, see Deployment. ",
+    "url": "/tag/v0.0.3/quick-start.html",
+    
+    "relUrl": "/quick-start.html"
+  },"44": {
+    "doc": "Quick Start",
+    "title": "1. Create an override file",
+    "content": "Copy this into docker-compose.override.yml next to the repository’s Compose file. The override is ignored by Git, so it is the right place for the local library path. services: sideload-library: volumes: - /path/to/epubs:/library:ro . ",
+    "url": "/tag/v0.0.3/quick-start.html#1-create-an-override-file",
+    
+    "relUrl": "/quick-start.html#1-create-an-override-file"
+  },"45": {
+    "doc": "Quick Start",
+    "title": "2. Start the library",
+    "content": "docker compose up -d . Put the service behind an HTTPS reverse proxy, then open its HTTPS URL. The one-time setup page creates the first administrator account and signs it in automatically. The container’s port 8080 is HTTP for the reverse proxy only; session cookies require HTTPS. ",
+    "url": "/tag/v0.0.3/quick-start.html#2-start-the-library",
+    
+    "relUrl": "/quick-start.html#2-start-the-library"
+  },"46": {
+    "doc": "Quick Start",
+    "title": "3. Add more library folders",
+    "content": "Mount each folder and list its matching container paths in LIBRARY_PATH: . services: sideload-library: environment: LIBRARY_PATH: /library/fiction,/library/nonfiction volumes: - /path/to/fiction:/library/fiction:ro - /path/to/nonfiction:/library/nonfiction:ro . The first configured folder wins when duplicate EPUBs are found. To recover access, stop the service and run docker compose run --rm sideload-library admin reset-password &lt;username&gt; &lt;password&gt;. The command sets the supplied password without starting a web server. ",
+    "url": "/tag/v0.0.3/quick-start.html#3-add-more-library-folders",
+    
+    "relUrl": "/quick-start.html#3-add-more-library-folders"
+  },"47": {
+    "doc": "Roadmap",
+    "title": "Roadmap",
+    "content": "Long term, larger milestones for the project. These will change and are not certain. ",
+    "url": "/tag/v0.0.3/project/roadmap.html",
+    
+    "relUrl": "/project/roadmap.html"
+  },"48": {
+    "doc": "Roadmap",
+    "title": "Non-Docker, multi-platform release (In Progress)",
+    "content": "Produce supported standalone releases for multiple platforms so operators can run the library without Docker. 09/30/26 Binaries are cross-compiled during release, but are majorly untested. Need testers &amp; testing done to make sure these are up to snuff with the docker release. ",
+    "url": "/tag/v0.0.3/project/roadmap.html#non-docker-multi-platform-release-in-progress",
+    
+    "relUrl": "/project/roadmap.html#non-docker-multi-platform-release-in-progress"
+  },"49": {
+    "doc": "Roadmap",
+    "title": "Kindle and MOBI support",
+    "content": "Explore Kindle delivery and MOBI indexing alongside EPUB without creating a second-class format path. ",
+    "url": "/tag/v0.0.3/project/roadmap.html#kindle-and-mobi-support",
+    
+    "relUrl": "/project/roadmap.html#kindle-and-mobi-support"
+  },"50": {
+    "doc": "Server",
+    "title": "Server",
+    "content": "Admins and Server Managers can open Admin from the account menu. The Server tab shows the running library’s indexed-book counts, configured paths, data directory, uptime, and last scan. ",
+    "url": "/tag/v0.0.3/user-guide/server-settings-and-email.html",
+    
+    "relUrl": "/user-guide/server-settings-and-email.html"
+  },"51": {
+    "doc": "Server",
+    "title": "Maintain the library index",
+    "content": "Open Tasks and queue Scan Library after adding, removing, or replacing EPUB files in the configured library folders. A scan also runs when the server starts. See Tasks for queue status and history. Use Clear library and queue scan on the Server tab when the derived index needs to be rebuilt from the configured folders. This removes indexed books, enrichment state, locations, and book-to-shelf memberships, then queues a fresh scan. Shelf definitions remain in place. Library maintenance Server details and the action to clear the derived index before queueing a new scan. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/server-settings-and-email.html#maintain-the-library-index",
+    
+    "relUrl": "/user-guide/server-settings-and-email.html#maintain-the-library-index"
+  },"52": {
+    "doc": "Server",
+    "title": "Configure the library",
+    "content": "Open Setup to change the site name, cover width, books per page, and session length. Use a positive number for cover width and books per page. Session length uses a Go duration such as 720h for thirty days. Set Public URL to the externally reachable HTTPS address, for example https://library.example.com. It is required for password-reset and invitation messages so links in email point to the correct public site. It does not replace the HTTPS reverse-proxy requirement in Deployment. Public URL setting The public HTTPS URL used when the library sends invitation and password-reset links. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/server-settings-and-email.html#configure-the-library",
+    
+    "relUrl": "/user-guide/server-settings-and-email.html#configure-the-library"
+  },"53": {
+    "doc": "Server",
+    "title": "Configure KEPUB downloads",
+    "content": "The Kepubify section controls whether users see the KEPUB download button. Write Calibre series metadata is optional and fills missing calibre:series and calibre:series_index fields in generated KEPUB downloads from the library’s effective series metadata. It does not modify the source EPUB or overwrite series metadata already in the book. Kobo does not normally import those fields from sideloaded books by itself. To show the series on Kobo, install NickelSeries so it imports the metadata with the book, or run seriesmeta after sideloading to write the series data to Kobo’s database. NickelSeries with books downloaded through Kobo’s browser has not yet been verified, so test with one book before relying on this workflow. ",
+    "url": "/tag/v0.0.3/user-guide/server-settings-and-email.html#configure-kepub-downloads",
+    
+    "relUrl": "/user-guide/server-settings-and-email.html#configure-kepub-downloads"
+  },"54": {
+    "doc": "Server",
+    "title": "Send a test email",
+    "content": ". | Open the SMTP tab. | Enter the provider hostname, port, encryption method, login, password, and sender name/address. | Select Save SMTP settings. | Enter a controlled recipient address in the test form and select Send test email. | Confirm delivery and check that any invitation or reset link uses the configured Public URL. | . Choose the encryption mode required by your provider: SSL/TLS, STARTTLS, or None. Leave the password field blank when updating another SMTP field and keeping the stored password. Treat SMTP credentials as secrets and restrict server-management access accordingly. SMTP setup Mail-provider settings and the test-email control. Desktop, 1440 x 810 Portrait Device, 768 x 1024 The weekly new-book digest, invitations, and password resets all depend on working SMTP. A successful save alone does not confirm delivery, so always use the test message. When SESSION_SECRET is unset, the application generates and persists a session signing secret in DATA_DIR/users.db. Set SESSION_SECRET only for a runtime override: it never overwrites the persisted value, and changing an override invalidates existing login sessions. ",
+    "url": "/tag/v0.0.3/user-guide/server-settings-and-email.html#send-a-test-email",
+    
+    "relUrl": "/user-guide/server-settings-and-email.html#send-a-test-email"
+  },"55": {
+    "doc": "Tasks",
+    "title": "Tasks",
+    "content": "Open Tasks from the Admin tabs to monitor queued maintenance work. The page refreshes every ten seconds while open. Select Pause refresh when reading a changing table or troubleshooting a task. ",
+    "url": "/tag/v0.0.3/user-guide/tasks.html",
+    
+    "relUrl": "/user-guide/tasks.html"
+  },"56": {
+    "doc": "Tasks",
+    "title": "Run a task",
+    "content": "Scan Library checks configured library folders and updates the derived index. It runs during server startup and can also be queued on demand. Only one scan can be queued or running at a time. The checkmark replaces the play control while the task is active. Email digest sends the weekly new-book digest to subscribed users. SMTP must be configured and enabled before it can run. Its next scheduled send is shown relative to the current time, and the play control sends a digest immediately. Tasks run one at a time. The History table shows the ten most recent task runs with their status, queued time, start time, and duration. Background tasks Queued maintenance work, scheduled email delivery, and continuous services. Desktop, 1440 x 810 Portrait Device, 768 x 1024 ",
+    "url": "/tag/v0.0.3/user-guide/tasks.html#run-a-task",
+    
+    "relUrl": "/user-guide/tasks.html#run-a-task"
+  },"57": {
+    "doc": "Tasks",
+    "title": "Rebuild the index",
+    "content": "Use Clear library and queue scan on the Server tab only when the derived index needs a complete rebuild. It clears indexed books, enrichment state, locations, and shelf memberships, then queues Scan Library. It does not remove the shelf definitions themselves. ",
+    "url": "/tag/v0.0.3/user-guide/tasks.html#rebuild-the-index",
+    
+    "relUrl": "/user-guide/tasks.html#rebuild-the-index"
+  },"58": {
+    "doc": "Vision",
+    "title": "Vision",
+    "content": "my-sideload-library is a self-hosted EPUB library for people who want to read the files they own on the e-readers they already use. ",
+    "url": "/tag/v0.0.3/project/vision.html",
+    
+    "relUrl": "/project/vision.html"
+  },"59": {
+    "doc": "Vision",
+    "title": "What this project is",
+    "content": ". | A small, dependable library server that indexes folders containing EPUB files. Restrained pages, large touch areas, simple controls, and direct EPUB or KEPUB downloads. | A browser interface designed first for Kobo-class e-reader browsers, then for modern desktop and mobile browsers. Color can support the interface, but meaning and state must not depend on color alone. | A local-first tool: your EPUB files, index, users, covers, and server settings remain under your control. Read metadata and covers from EPUBs first. Optional integrations can enrich a library but are never required to browse it. | . ",
+    "url": "/tag/v0.0.3/project/vision.html#what-this-project-is",
+    
+    "relUrl": "/project/vision.html#what-this-project-is"
+  },"60": {
+    "doc": "Vision",
+    "title": "What this project is not",
+    "content": "my-sideload-library not a downloader and does not discover, acquire, source, or manage book files. It also does not replace applications that interface with indexers or other acquisition services. It is a private, browser-accessible home for an EPUB collection you already own. ",
+    "url": "/tag/v0.0.3/project/vision.html#what-this-project-is-not",
+    
+    "relUrl": "/project/vision.html#what-this-project-is-not"
+  },"61": {
+    "doc": "Windows",
+    "title": "Windows",
+    "content": "Download sideload-library_&lt;version&gt;_windows_amd64.exe from the GitHub release. Create a data directory outside the application download directory, then launch the executable from PowerShell with its required configuration: . New-Item -ItemType Directory -Force C:\\sideload-library-data $env:LIBRARY_PATH = \"D:\\Books\" $env:DATA_DIR = \"C:\\sideload-library-data\" $env:PORT = \"8080\" &amp; \"C:\\sideload-library\\sideload-library_&lt;version&gt;_windows_amd64.exe\" . Put the process behind an HTTPS reverse proxy, then open its HTTPS URL. Port 8080 is HTTP for the reverse proxy only because session cookies require HTTPS. The process must remain running, so use Task Scheduler or a Windows service wrapper for an always-on installation. The executable does not load .env files itself. For repeatable local launches, save the environment assignments and final command above in a private PowerShell script, such as run-sideload-library.ps1, and keep that script out of source control. The first launch displays a one-time setup page to create the first administrator. To reset a password without starting the server, use the same data directory: $env:DATA_DIR = \"C:\\sideload-library-data\"; &amp; \"C:\\sideload-library\\sideload-library_&lt;version&gt;_windows_amd64.exe\" admin reset-password admin &lt;password&gt;. ",
+    "url": "/tag/v0.0.3/deployment/windows.html",
+    
+    "relUrl": "/deployment/windows.html"
+  }
+}
