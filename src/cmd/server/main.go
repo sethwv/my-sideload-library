@@ -17,6 +17,7 @@ import (
 	"github.com/sethwv/my-sideload-library/internal/auth"
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
 	"github.com/sethwv/my-sideload-library/internal/config"
+	"github.com/sethwv/my-sideload-library/internal/connections"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 	"github.com/sethwv/my-sideload-library/internal/index"
 	"github.com/sethwv/my-sideload-library/internal/tasks"
@@ -141,21 +142,22 @@ func main() {
 		log.Fatalf("load chaptarr cache: %v", err)
 	}
 	srv := &web.Server{
-		Auth:         authn,
-		DB:           db,
-		Covers:       covers,
-		Users:        userStore,
-		Hardcover:    hc,
-		Chaptarr:     ch,
-		LibraryPaths: cfg.LibraryPaths,
-		DataDir:      cfg.DataDir,
-		PageSize:     generalSettings.PageSize,
-		SiteName:     generalSettings.SiteName,
-		PublicURL:    generalSettings.PublicURL,
-		StartedAt:    time.Now(),
-		BuildVersion: buildVersion,
-		BuildDate:    buildDate,
-		RateLimiter:  web.NewRateLimiter(),
+		Auth:            authn,
+		DB:              db,
+		Covers:          covers,
+		Users:           userStore,
+		Hardcover:       hc,
+		Chaptarr:        ch,
+		LibraryPaths:    cfg.LibraryPaths,
+		DataDir:         cfg.DataDir,
+		PageSize:        generalSettings.PageSize,
+		SiteName:        generalSettings.SiteName,
+		PublicURL:       generalSettings.PublicURL,
+		StartedAt:       time.Now(),
+		BuildVersion:    buildVersion,
+		BuildDate:       buildDate,
+		RateLimiter:     web.NewRateLimiter(),
+		HardcoverSource: connections.NewHardcoverSource(nil),
 	}
 	taskStore, err := tasks.Open(filepath.Join(cfg.DataDir, "tasks.db"))
 	if err != nil {
@@ -186,10 +188,12 @@ func main() {
 		return err
 	})
 	taskManager.Register(tasks.Task{Key: "chaptarr-reconcile", Name: "Reconcile Chaptarr matches", Kind: tasks.KindJob, Runnable: true, Hidden: true, NextRun: "After catalog refresh"}, srv.ReconcileChaptarrMatches)
+	taskManager.Register(tasks.Task{Key: "hardcover-shelf-sync", Name: "Sync Hardcover shelves", Kind: tasks.KindJob, Runnable: true, NextRun: "Daily"}, srv.RunHardcoverShelfSync)
 	taskManager.Register(tasks.Task{Key: "filesystem-watcher", Name: "Filesystem watcher", Kind: tasks.KindService}, nil)
 	taskManager.Register(tasks.Task{Key: "enrichment-queue", Name: "Enrichment queue", Kind: tasks.KindService}, nil)
 	taskManager.Register(tasks.Task{Key: "chaptarr-refresh-scheduler", Name: "Chaptarr refresh scheduler", Kind: tasks.KindService}, nil)
 	taskManager.Register(tasks.Task{Key: "digest-scheduler", Name: "Digest scheduler", Kind: tasks.KindService}, nil)
+	taskManager.Register(tasks.Task{Key: "hardcover-shelf-sync-scheduler", Name: "Hardcover shelf sync scheduler", Kind: tasks.KindService}, nil)
 	srv.Tasks = taskManager
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -231,6 +235,9 @@ func main() {
 	}
 	if err := taskManager.StartService(ctx, "digest-scheduler", srv.RunDigestScheduler); err != nil {
 		log.Fatalf("start digest task: %v", err)
+	}
+	if err := taskManager.StartService(ctx, "hardcover-shelf-sync-scheduler", srv.RunHardcoverShelfSyncScheduler); err != nil {
+		log.Fatalf("start Hardcover shelf sync scheduler: %v", err)
 	}
 
 	mux := http.NewServeMux()
@@ -305,6 +312,10 @@ func main() {
 	mux.Handle("GET /account/connections/goodreads", authn.RequireFull(http.HandlerFunc(srv.AccountConnections)))
 	mux.Handle("POST /account/connections/goodreads", authn.RequireFull(protectedPost(http.HandlerFunc(srv.AccountGoodreadsUpload))))
 	mux.Handle("POST /account/connections/goodreads/shelves", authn.RequireFull(protectedPost(http.HandlerFunc(srv.AccountGoodreadsShelves))))
+	mux.Handle("POST /account/connections/goodreads/disconnect", authn.RequireFull(protectedPost(http.HandlerFunc(srv.AccountGoodreadsDisconnect))))
+	mux.Handle("POST /account/connections/hardcover", authn.RequireFull(protectedPost(http.HandlerFunc(srv.AccountHardcoverToken))))
+	mux.Handle("POST /account/connections/hardcover/shelves", authn.RequireFull(protectedPost(http.HandlerFunc(srv.AccountHardcoverShelves))))
+	mux.Handle("POST /account/connections/hardcover/disconnect", authn.RequireFull(protectedPost(http.HandlerFunc(srv.AccountHardcoverDisconnect))))
 	mux.Handle("GET /account/shelves", authn.RequirePermission(users.PermissionOwnShelves, http.HandlerFunc(srv.AccountShelves)))
 	mux.Handle("POST /account/shelves", authn.RequirePermission(users.PermissionOwnShelves, protectedPost(http.HandlerFunc(srv.AccountShelvesCreate))))
 	mux.Handle("POST /account/shelves/{id}/rename", authn.RequirePermission(users.PermissionOwnShelves, protectedPost(http.HandlerFunc(srv.AccountShelvesRename))))

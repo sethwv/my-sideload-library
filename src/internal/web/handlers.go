@@ -23,22 +23,23 @@ import (
 )
 
 type Server struct {
-	Auth         *auth.Authenticator
-	DB           *index.DB
-	Covers       *thumbnail.Store
-	Users        *users.Store
-	Hardcover    *hardcover.Client // nil-safe: Enabled() is false with no token, callers check before use
-	Chaptarr     *chaptarr.Client  // nil-safe: Enabled() is false with no URL/key, callers check before use
-	LibraryPaths []string
-	DataDir      string
-	PageSize     int
-	SiteName     string
-	PublicURL    string // trusted base URL for emailed links; see config.Config.PublicURL
-	StartedAt    time.Time
-	BuildVersion string
-	BuildDate    string
-	Tasks        *tasks.Manager
-	RateLimiter  *RateLimiter
+	Auth            *auth.Authenticator
+	DB              *index.DB
+	Covers          *thumbnail.Store
+	Users           *users.Store
+	Hardcover       *hardcover.Client // nil-safe: Enabled() is false with no token, callers check before use
+	Chaptarr        *chaptarr.Client  // nil-safe: Enabled() is false with no URL/key, callers check before use
+	LibraryPaths    []string
+	DataDir         string
+	PageSize        int
+	SiteName        string
+	PublicURL       string // trusted base URL for emailed links; see config.Config.PublicURL
+	StartedAt       time.Time
+	BuildVersion    string
+	BuildDate       string
+	Tasks           *tasks.Manager
+	HardcoverSource connections.Source
+	RateLimiter     *RateLimiter
 
 	enrichmentMu         sync.RWMutex
 	enrichmentQueueState string
@@ -1202,6 +1203,9 @@ func (s *Server) ServerIntegrations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provider := r.URL.Query().Get("provider")
+	if provider == "" && strings.Contains(r.URL.Path, "/hardcover") {
+		provider = "hardcover"
+	}
 	if provider != "hardcover" {
 		provider = "chaptarr"
 	}
@@ -1314,8 +1318,12 @@ func (s *Server) AdminShelves(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load shelves", http.StatusInternalServerError)
 		return
 	}
-	var privateShelves, sharedShelves, publicShelves []index.Shelf
+	var privateShelves, sharedShelves, publicShelves, connectedShelves []index.Shelf
 	for _, shelf := range shelves {
+		if shelf.IsIntegration() {
+			connectedShelves = append(connectedShelves, shelf)
+			continue
+		}
 		switch shelf.Visibility {
 		case index.ShelfVisibilityShared:
 			sharedShelves = append(sharedShelves, shelf)
@@ -1330,7 +1338,7 @@ func (s *Server) AdminShelves(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to load page", http.StatusInternalServerError)
 		return
 	}
-	data := map[string]any{"Title": "Manage Shelves", "AdminTab": "shelves", "PrivateShelves": privateShelves, "SharedShelves": sharedShelves, "PublicShelves": publicShelves}
+	data := map[string]any{"Title": "Manage Shelves", "AdminTab": "shelves", "PrivateShelves": privateShelves, "SharedShelves": sharedShelves, "PublicShelves": publicShelves, "ConnectedShelves": connectedShelves}
 	mergeInto(data, base)
 	render(w, "admin_shelves.html", data)
 }
@@ -1663,14 +1671,35 @@ func (s *Server) renderConnections(w http.ResponseWriter, r *http.Request, errMs
 		http.Error(w, "failed to load connections", http.StatusInternalServerError)
 		return
 	}
-	shelves, err := s.Users.ConnectionShelves(username, "goodreads")
+	goodreadsShelves, err := s.Users.ConnectionShelves(username, "goodreads")
 	if err != nil {
 		http.Error(w, "failed to load Goodreads shelves", http.StatusInternalServerError)
 		return
 	}
-	data := map[string]any{"Title": "Connections", "AccountTab": "connections", "Error": errMsg, "Status": status, "Connections": providerConnections, "GoodreadsShelves": shelves}
+	hardcoverShelves, err := s.Users.ConnectionShelves(username, "hardcover")
+	if err != nil {
+		http.Error(w, "failed to load Hardcover shelves", http.StatusInternalServerError)
+		return
+	}
+	provider := r.URL.Query().Get("provider")
+	if provider == "" && strings.Contains(r.URL.Path, "/hardcover") {
+		provider = "hardcover"
+	}
+	if provider != "hardcover" {
+		provider = "goodreads"
+	}
+	data := map[string]any{"Title": "Connections", "AccountTab": "connections", "ConnectionTab": provider, "Error": errMsg, "Status": status, "Connections": providerConnections, "GoodreadsShelves": goodreadsShelves, "GoodreadsConnection": connectionForProvider(providerConnections, "goodreads"), "HardcoverShelves": hardcoverShelves, "HardcoverConnection": connectionForProvider(providerConnections, "hardcover")}
 	mergeInto(data, base)
 	render(w, "account_connections.html", data)
+}
+
+func connectionForProvider(connections []users.Connection, provider string) *users.Connection {
+	for i := range connections {
+		if connections[i].Provider == provider {
+			return &connections[i]
+		}
+	}
+	return nil
 }
 
 func (s *Server) AccountGoodreadsUpload(w http.ResponseWriter, r *http.Request) {
@@ -1735,7 +1764,116 @@ func (s *Server) AccountGoodreadsShelves(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "failed to sync Goodreads shelves", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/account/connections", http.StatusSeeOther)
+	http.Redirect(w, r, "/account/connections?provider=goodreads", http.StatusSeeOther)
+}
+
+func (s *Server) AccountGoodreadsDisconnect(w http.ResponseWriter, r *http.Request) {
+	s.disconnectConnection(w, r, "goodreads")
+}
+
+func (s *Server) AccountHardcoverToken(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	token := connections.NormalizeHardcoverToken(r.FormValue("token"))
+	snapshot, err := s.hardcoverSource().Snapshot(r.Context(), token)
+	if err != nil {
+		s.renderConnections(w, r, safeHardcoverSyncError(err), "")
+		return
+	}
+	username, _ := auth.UsernameFromContext(r.Context())
+	if err := s.Users.SaveConnection(username, "hardcover", token, true); err != nil {
+		http.Error(w, "failed to save Hardcover connection", http.StatusInternalServerError)
+		return
+	}
+	if err := connections.Reconcile(username, "hardcover", snapshot, s.Users, s.DB); err != nil {
+		http.Error(w, "failed to save Hardcover sources", http.StatusInternalServerError)
+		return
+	}
+	s.renderConnections(w, r, "", "Hardcover token saved. Select the shelves to sync.")
+}
+
+func (s *Server) AccountHardcoverShelves(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	username, _ := auth.UsernameFromContext(r.Context())
+	shelves, err := s.Users.ConnectionShelves(username, "hardcover")
+	if err != nil {
+		http.Error(w, "failed to load Hardcover shelves", http.StatusInternalServerError)
+		return
+	}
+	for _, shelf := range shelves {
+		if err := s.Users.SetConnectionShelfSelection(username, "hardcover", shelf.RemoteKey, r.FormValue("shelf-"+shelf.RemoteKey) == "on"); err != nil {
+			http.Error(w, "failed to save Hardcover shelves", http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := s.reconcileStoredConnection(username, "hardcover"); err != nil {
+		http.Error(w, "failed to update Hardcover shelves", http.StatusInternalServerError)
+		return
+	}
+	if _, err := s.queueHardcoverSync(username); err != nil {
+		http.Error(w, "failed to queue Hardcover sync", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/account/connections?provider=hardcover", http.StatusSeeOther)
+}
+
+func (s *Server) AccountHardcoverDisconnect(w http.ResponseWriter, r *http.Request) {
+	s.disconnectConnection(w, r, "hardcover")
+}
+
+func (s *Server) disconnectConnection(w http.ResponseWriter, r *http.Request, provider string) {
+	username, _ := auth.UsernameFromContext(r.Context())
+	shelves, err := s.Users.ConnectionShelves(username, provider)
+	if err != nil {
+		http.Error(w, "failed to load connection shelves", http.StatusInternalServerError)
+		return
+	}
+	for _, shelf := range shelves {
+		if err := s.DB.DeleteIntegrationShelf(username, provider, shelf.RemoteKey); err != nil {
+			http.Error(w, "failed to remove connection shelves", http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := s.Users.DeleteConnection(username, provider); err != nil {
+		http.Error(w, "failed to remove connection", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/account/connections?provider="+url.QueryEscape(provider), http.StatusSeeOther)
+}
+
+func (s *Server) reconcileStoredConnection(username, provider string) error {
+	shelves, err := s.Users.ConnectionShelves(username, provider)
+	if err != nil {
+		return err
+	}
+	var snapshot connections.Snapshot
+	for _, shelf := range shelves {
+		snapshot.Shelves = append(snapshot.Shelves, connections.Shelf{Key: shelf.RemoteKey, Name: shelf.Name})
+		items, err := s.Users.ConnectionItems(username, provider, shelf.RemoteKey)
+		if err != nil {
+			return err
+		}
+		for _, item := range items {
+			snapshot.Items = append(snapshot.Items, connections.Item{ShelfKey: item.RemoteShelfKey, ExternalID: item.ExternalID, Title: item.Title, Author: item.Author, ISBN: item.ISBN, AddedAt: item.AddedAt, Position: item.SourcePosition})
+		}
+	}
+	return connections.Reconcile(username, provider, snapshot, s.Users, s.DB)
+}
+
+func (s *Server) queueHardcoverSync(username string) (bool, error) {
+	if err := s.Users.ScheduleConnectionSync(username, "hardcover"); err != nil {
+		return false, err
+	}
+	if s.Tasks == nil {
+		return false, fmt.Errorf("task manager unavailable")
+	}
+	_, created, err := s.Tasks.Enqueue("hardcover-shelf-sync")
+	return created, err
 }
 
 // AccountEmailSubmit updates the logged-in user's optional email address.

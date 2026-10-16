@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,11 +16,18 @@ import (
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/auth"
+	"github.com/sethwv/my-sideload-library/internal/connections"
 	"github.com/sethwv/my-sideload-library/internal/index"
 	"github.com/sethwv/my-sideload-library/internal/mail"
 	"github.com/sethwv/my-sideload-library/internal/tasks"
 	"github.com/sethwv/my-sideload-library/internal/users"
 )
+
+type testConnectionSource func(context.Context, string) (connections.Snapshot, error)
+
+func (f testConnectionSource) Snapshot(ctx context.Context, token string) (connections.Snapshot, error) {
+	return f(ctx, token)
+}
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
@@ -92,6 +100,47 @@ func TestConnectionDisplayTitleStripsSeriesMarker(t *testing.T) {
 		if got := connectionDisplayTitle(test.title); got != test.want {
 			t.Errorf("connectionDisplayTitle(%q) = %q, want %q", test.title, got, test.want)
 		}
+	}
+}
+
+func TestHardcoverShelfSyncContinuesAfterConnectionFailure(t *testing.T) {
+	server := newAccountTestServer(t)
+	for _, username := range []string{"bad", "good"} {
+		if err := server.Users.Create(username, "password", users.RoleMember, true, ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := server.Users.SaveConnection(username, "hardcover", username+"-token", true); err != nil {
+			t.Fatal(err)
+		}
+		if err := server.Users.ReplaceConnectionSnapshot(username, "hardcover", []users.ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := server.Users.SetConnectionShelfSelection(username, "hardcover", "read", true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	server.HardcoverSource = testConnectionSource(func(_ context.Context, token string) (connections.Snapshot, error) {
+		if token == "bad-token" {
+			return connections.Snapshot{}, fmt.Errorf("bad credential")
+		}
+		return connections.Snapshot{Shelves: []connections.Shelf{{Key: "read", Name: "Read"}}, Items: []connections.Item{{ShelfKey: "read", ExternalID: "book", Title: "Book", Position: 0}}}, nil
+	})
+	if err := server.RunHardcoverShelfSync(context.Background()); err == nil || !strings.Contains(err.Error(), "1 Hardcover connection") {
+		t.Fatalf("RunHardcoverShelfSync() = %v", err)
+	}
+	connectionsByUser := map[string]users.Connection{}
+	for _, username := range []string{"bad", "good"} {
+		list, err := server.Users.ListConnections(username)
+		if err != nil || len(list) != 1 {
+			t.Fatalf("ListConnections(%q) = %#v, %v", username, list, err)
+		}
+		connectionsByUser[username] = list[0]
+	}
+	if connectionsByUser["good"].LastSuccessAt == 0 {
+		t.Error("successful connection did not record last success")
+	}
+	if connectionsByUser["bad"].LastError != "bad credential" {
+		t.Errorf("failed connection error = %q", connectionsByUser["bad"].LastError)
 	}
 }
 
@@ -203,19 +252,19 @@ func TestConnectedShelfUsesLibraryControlsAndGhostCards(t *testing.T) {
 	if err := server.Users.Create("reader", "password", users.RoleMember, true, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.Users.ReplaceConnectionSnapshot("reader", "goodreads", []users.ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []users.ConnectionItem{
+	if err := server.Users.ReplaceConnectionSnapshot("reader", "hardcover", []users.ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []users.ConnectionItem{
 		{RemoteShelfKey: "read", ExternalID: "first", Title: "First missing", Author: "Author", SourcePosition: 0},
 		{RemoteShelfKey: "read", ExternalID: "second", Title: "Second missing", Author: "Author", SourcePosition: 1},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.Users.SetConnectionItemEnrichment(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "second"}, "", "", "", "https://covers.example/second.jpg", "not-found"); err != nil {
+	if err := server.Users.SetConnectionItemEnrichment(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "hardcover", RemoteShelfKey: "read", ExternalID: "second"}, "", "", "", "https://covers.example/second.jpg", "not-found"); err != nil {
 		t.Fatal(err)
 	}
-	if err := server.Users.SetConnectionItemCoverPath(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "goodreads", RemoteShelfKey: "read", ExternalID: "second"}, "connection-test.jpg"); err != nil {
+	if err := server.Users.SetConnectionItemCoverPath(users.ConnectionEnrichmentCandidate{Username: "reader", Provider: "hardcover", RemoteShelfKey: "read", ExternalID: "second"}, "connection-test.jpg"); err != nil {
 		t.Fatal(err)
 	}
-	shelfID, err := server.DB.ReplaceIntegrationShelfBooks("reader", "goodreads", "read", "Goodreads: Read", nil)
+	shelfID, err := server.DB.ReplaceIntegrationShelfBooks("reader", "hardcover", "read", "Hardcover: Read", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,13 +276,35 @@ func TestConnectedShelfUsesLibraryControlsAndGhostCards(t *testing.T) {
 		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
 	}
 	body := recorder.Body.String()
-	for _, want := range []string{"Provider order", "Second missing", "connected-ghost", "MISSING", "/cover?item=second&amp;provider=goodreads&amp;shelf=read"} {
+	for _, want := range []string{"Provider order", "Second missing", "connected-ghost", "MISSING", "/cover?item=second&amp;provider=hardcover&amp;shelf=read"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("connected shelf missing %q: %s", want, body)
 		}
 	}
 	if strings.Contains(body, ">Settings</button>") {
 		t.Error("connected shelf rendered a settings action")
+	}
+}
+
+func TestHardcoverShelfRendersMatchedLocalBooks(t *testing.T) {
+	server := newAccountTestServer(t)
+	if err := server.Users.Create("reader", "password", users.RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	bookID := addTestBook(t, server.DB)
+	if err := server.Users.ReplaceConnectionSnapshot("reader", "hardcover", []users.ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, []users.ConnectionItem{{RemoteShelfKey: "read", ExternalID: "book", Title: "Test Book", Author: "Test Author", LocalBookID: bookID}}); err != nil {
+		t.Fatal(err)
+	}
+	shelfID, err := server.DB.ReplaceIntegrationShelfBooks("reader", "hardcover", "read", "Hardcover: Read", []int64{bookID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := authenticatedRequest(t, server, http.MethodGet, "/shelves/"+strconv.FormatInt(shelfID, 10), "reader", nil)
+	req.SetPathValue("id", strconv.FormatInt(shelfID, 10))
+	recorder := httptest.NewRecorder()
+	server.Auth.RequireAuth(http.HandlerFunc(server.ShelfHandler)).ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
 	}
 }
 

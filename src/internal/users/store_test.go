@@ -140,6 +140,38 @@ func TestConnectionItemsPage_SearchPaginationAndProviderOrder(t *testing.T) {
 	}
 }
 
+func TestDueHardcoverConnectionsRequireSelectionAndRespectNextAttempt(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.Create("reader", "password", RoleMember, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveConnection("reader", "hardcover", "private-token", true); err != nil {
+		t.Fatal(err)
+	}
+	if due, err := s.DueHardcoverConnections(time.Now().Unix()); err != nil || len(due) != 0 {
+		t.Fatalf("unselected due = %#v, %v", due, err)
+	}
+	if err := s.ReplaceConnectionSnapshot("reader", "hardcover", []ConnectionShelf{{RemoteKey: "read", Name: "Read"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetConnectionShelfSelection("reader", "hardcover", "read", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetConnectionSyncResult("reader", "hardcover", true, time.Now().Add(time.Hour).Unix(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if due, err := s.DueHardcoverConnections(time.Now().Unix()); err != nil || len(due) != 0 {
+		t.Fatalf("not-due connections = %#v, %v", due, err)
+	}
+	if err := s.ScheduleConnectionSync("reader", "hardcover"); err != nil {
+		t.Fatal(err)
+	}
+	due, err := s.DueHardcoverConnections(time.Now().Unix())
+	if err != nil || len(due) != 1 || due[0].Username != "reader" || due[0].Secret != "private-token" {
+		t.Fatalf("due = %#v, %v", due, err)
+	}
+}
+
 func TestReplaceConnectionSnapshot_PreservesEnrichmentAndRetryState(t *testing.T) {
 	s := openTestStore(t)
 	if err := s.Create("reader", "password", RoleMember, true, ""); err != nil {

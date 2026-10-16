@@ -17,10 +17,18 @@ type Connection struct {
 	LastError     string
 }
 
+// SyncConnection is an internal scheduler view. Its secret must never cross
+// into templates, task errors, or HTTP responses.
+type SyncConnection struct {
+	Username string
+	Secret   string
+}
+
 type ConnectionShelf struct {
 	RemoteKey string
 	Name      string
 	Selected  bool
+	ItemCount int
 }
 
 type ConnectionItem struct {
@@ -187,7 +195,7 @@ func (s *Store) ConnectionShelves(username, provider string) ([]ConnectionShelf,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.sql.Query(`SELECT remote_key, name, selected FROM connection_shelves WHERE user_id = ? AND provider = ? ORDER BY name COLLATE NOCASE`, userID, provider)
+	rows, err := s.sql.Query(`SELECT cs.remote_key, cs.name, cs.selected, COUNT(ci.external_id) FROM connection_shelves cs LEFT JOIN connection_items ci ON ci.user_id = cs.user_id AND ci.provider = cs.provider AND ci.remote_shelf_key = cs.remote_key WHERE cs.user_id = ? AND cs.provider = ? GROUP BY cs.remote_key, cs.name, cs.selected ORDER BY cs.name COLLATE NOCASE`, userID, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +204,7 @@ func (s *Store) ConnectionShelves(username, provider string) ([]ConnectionShelf,
 	for rows.Next() {
 		var shelf ConnectionShelf
 		var selected int
-		if err := rows.Scan(&shelf.RemoteKey, &shelf.Name, &selected); err != nil {
+		if err := rows.Scan(&shelf.RemoteKey, &shelf.Name, &selected, &shelf.ItemCount); err != nil {
 			return nil, err
 		}
 		shelf.Selected = selected != 0
@@ -431,6 +439,47 @@ func (s *Store) SetConnectionSyncResult(username, provider string, success bool,
 		message = ""
 	}
 	_, err = s.sql.Exec(`UPDATE user_connections SET last_attempt_at = ?, last_success_at = CASE WHEN ? THEN ? ELSE last_success_at END, next_attempt_at = ?, last_error = ?, updated_at = ? WHERE user_id = ? AND provider = ?`, now, boolToInt(success), now, nextAttemptAt, message, now, userID, provider)
+	return err
+}
+
+// DueHardcoverConnections returns enabled, selected personal connections whose
+// durable retry or daily-sync time has elapsed.
+func (s *Store) DueHardcoverConnections(now int64) ([]SyncConnection, error) {
+	rows, err := s.sql.Query(`SELECT u.username, uc.secret FROM user_connections uc JOIN users u ON u.id = uc.user_id WHERE uc.provider = 'hardcover' AND uc.enabled = 1 AND uc.secret != '' AND uc.next_attempt_at <= ? AND EXISTS (SELECT 1 FROM connection_shelves cs WHERE cs.user_id = uc.user_id AND cs.provider = uc.provider AND cs.selected = 1) ORDER BY uc.next_attempt_at, u.username`, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var connections []SyncConnection
+	for rows.Next() {
+		var connection SyncConnection
+		if err := rows.Scan(&connection.Username, &connection.Secret); err != nil {
+			return nil, err
+		}
+		connections = append(connections, connection)
+	}
+	return connections, rows.Err()
+}
+
+// NextHardcoverSyncAt returns the earliest enabled selected connection due
+// time. A zero result means there is no selected connection to schedule.
+func (s *Store) NextHardcoverSyncAt() (int64, error) {
+	var next sql.NullInt64
+	err := s.sql.QueryRow(`SELECT MIN(uc.next_attempt_at) FROM user_connections uc WHERE uc.provider = 'hardcover' AND uc.enabled = 1 AND uc.secret != '' AND EXISTS (SELECT 1 FROM connection_shelves cs WHERE cs.user_id = uc.user_id AND cs.provider = uc.provider AND cs.selected = 1)`).Scan(&next)
+	if err != nil || !next.Valid {
+		return 0, err
+	}
+	return next.Int64, nil
+}
+
+// ScheduleConnectionSync makes a selected connection eligible for the shared
+// sync task without falsely recording an attempt.
+func (s *Store) ScheduleConnectionSync(username, provider string) error {
+	userID, err := s.connectionUserID(username)
+	if err != nil {
+		return err
+	}
+	_, err = s.sql.Exec(`UPDATE user_connections SET next_attempt_at = 0, updated_at = ? WHERE user_id = ? AND provider = ? AND enabled = 1`, time.Now().Unix(), userID, provider)
 	return err
 }
 
