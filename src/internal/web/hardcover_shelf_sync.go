@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -31,7 +30,7 @@ func (s *Server) RunHardcoverShelfSync(ctx context.Context) error {
 	for _, connection := range due {
 		if err := s.syncHardcoverConnection(ctx, connection.Username, connection.Secret); err != nil {
 			failures++
-			log.Printf("hardcover shelf sync for %s: %v", connection.Username, err)
+			s.log().Error("hardcover shelf sync for")
 		}
 	}
 	if failures > 0 {
@@ -74,7 +73,7 @@ func (s *Server) RunHardcoverShelfSyncScheduler(ctx context.Context) {
 	for {
 		next, err := s.Users.NextHardcoverSyncAt()
 		if err != nil {
-			log.Printf("hardcover shelf sync scheduler: next due: %v", err)
+			s.log().Error("hardcover shelf sync scheduler: next due")
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
@@ -82,7 +81,7 @@ func (s *Server) RunHardcoverShelfSyncScheduler(ctx context.Context) {
 		if next != 0 && next <= now.Unix() {
 			if s.Tasks != nil {
 				if _, _, err := s.Tasks.Enqueue("hardcover-shelf-sync"); err != nil {
-					log.Printf("hardcover shelf sync scheduler: queue sync: %v", err)
+					s.log().Error("hardcover shelf sync scheduler: queue sync")
 				}
 			}
 			sleepOrDone(ctx, idlePollInterval)

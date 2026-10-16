@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -28,7 +27,7 @@ func (s *Server) RunDigestScheduler(ctx context.Context) {
 		// First run ever: start the clock now rather than digesting the
 		// entire existing library on the very first send.
 		if err := s.DB.SetMeta(lastDigestMetaKey, strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
-			log.Printf("digest scheduler: init last-sent marker: %v", err)
+			s.log().Error("digest scheduler: init last-sent marker")
 		}
 	}
 
@@ -43,7 +42,7 @@ func (s *Server) RunDigestScheduler(ctx context.Context) {
 			if s.Tasks == nil {
 				s.maybeSendDigest()
 			} else if _, _, err := s.Tasks.Enqueue("email-digest"); err != nil {
-				log.Printf("digest scheduler: queue digest: %v", err)
+				s.log().Error("digest scheduler: queue digest")
 			}
 		}
 		sleepOrDone(ctx, s.nextDigestDelay())
@@ -78,6 +77,7 @@ func (s *Server) nextDigestDelay() time.Duration {
 // SendDigestNow runs the scheduled digest immediately, for the admin task.
 func (s *Server) SendDigestNow() error {
 	if !s.smtpAvailable() {
+		s.log().Info("digest skipped because SMTP is not configured")
 		return nil
 	}
 	s.maybeSendDigest(true)
@@ -87,7 +87,7 @@ func (s *Server) SendDigestNow() error {
 func (s *Server) maybeSendDigest(force ...bool) {
 	v, ok, err := s.DB.GetMeta(lastDigestMetaKey)
 	if err != nil {
-		log.Printf("digest scheduler: read last-sent marker: %v", err)
+		s.log().Error("digest scheduler: read last-sent marker")
 		return
 	}
 	var lastSent int64
@@ -100,7 +100,7 @@ func (s *Server) maybeSendDigest(force ...bool) {
 
 	settings, err := s.Users.GetSMTPSettings()
 	if err != nil {
-		log.Printf("digest scheduler: load smtp settings: %v", err)
+		s.log().Error("digest scheduler: load smtp settings")
 		return
 	}
 	if !settings.Enabled() {
@@ -109,33 +109,33 @@ func (s *Server) maybeSendDigest(force ...bool) {
 
 	books, err := s.DB.List(index.SortAdded, true, 1, 500, index.Filter{AddedAfter: lastSent})
 	if err != nil {
-		log.Printf("digest scheduler: list new books: %v", err)
+		s.log().Error("digest scheduler: list new books")
 		return
 	}
 
 	now := time.Now().Unix()
 	if len(books) == 0 {
 		if err := s.DB.SetMeta(lastDigestMetaKey, strconv.FormatInt(now, 10)); err != nil {
-			log.Printf("digest scheduler: update last-sent marker: %v", err)
+			s.log().Error("digest scheduler: update last-sent marker")
 		}
 		return
 	}
 
 	subscribers, err := s.Users.DigestSubscribers()
 	if err != nil {
-		log.Printf("digest scheduler: list subscribers: %v", err)
+		s.log().Error("digest scheduler: list subscribers")
 		return
 	}
 
 	body := digestBody(s.SiteName, books)
 	for _, email := range subscribers {
 		if err := mail.Send(settings, email, fmt.Sprintf("%d new books in %s", len(books), s.SiteName), body); err != nil {
-			log.Printf("digest scheduler: send to %s: %v", email, err)
+			s.log().Error("digest scheduler: send to")
 		}
 	}
 
 	if err := s.DB.SetMeta(lastDigestMetaKey, strconv.FormatInt(now, 10)); err != nil {
-		log.Printf("digest scheduler: update last-sent marker: %v", err)
+		s.log().Error("digest scheduler: update last-sent marker")
 	}
 }
 

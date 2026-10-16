@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/pressly/goose/v3"
+	"github.com/sethwv/my-sideload-library/internal/logging"
 	"github.com/sethwv/my-sideload-library/internal/sqlite"
 	_ "modernc.org/sqlite"
 )
@@ -50,6 +51,7 @@ func Open(dbPath string) (*DB, error) {
 	sdb.SetMaxOpenConns(1)
 
 	goose.SetBaseFS(migrationsFS)
+	goose.SetLogger(logging.NewGooseLogger("library"))
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		sdb.Close()
 		return nil, fmt.Errorf("set migration dialect: %w", err)

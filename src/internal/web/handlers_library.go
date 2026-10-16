@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -515,7 +514,7 @@ func (s *Server) DownloadKepub(w http.ResponseWriter, r *http.Request) {
 		metadata = &kepub.Metadata{Series: book.Series, SeriesIndex: book.SeriesIndex}
 	}
 	if err := kepub.ConvertFile(r.Context(), w, filepath.Join(book.LibraryRoot, book.FilePath), metadata); err != nil {
-		log.Printf("kepub conversion failed for %s: %v", book.FilePath, err)
+		s.log().Error("kepub conversion failed for")
 	}
 }
 

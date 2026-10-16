@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sethwv/my-sideload-library/internal/logging"
 )
 
 type Config struct {
@@ -19,6 +21,8 @@ type Config struct {
 	CoverWidth    int
 	PageSize      int
 	SessionTTL    time.Duration
+	LogLevel      string
+	LogHTTP       bool
 	// HardcoverToken is a one-time bootstrap value only: on first boot, if
 	// no integration_settings row exists yet, it seeds the DB-backed
 	// Hardcover token (see users.IntegrationSettings and the admin
@@ -43,6 +47,7 @@ func Load() (*Config, error) {
 		SiteName:       getenv("SITE_NAME", "sideload-library"),
 		HardcoverToken: os.Getenv("HARDCOVER_API_TOKEN"),
 		PublicURL:      strings.TrimRight(os.Getenv("PUBLIC_URL"), "/"),
+		LogLevel:       getenv("LOG_LEVEL", "info"),
 	}
 
 	var err error
@@ -53,6 +58,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if c.SessionTTL, err = getenvDuration("SESSION_TTL", 720*time.Hour); err != nil {
+		return nil, err
+	}
+	if c.LogHTTP, err = getenvBool("LOG_HTTP", false); err != nil {
+		return nil, err
+	}
+	if _, err = logging.ParseLevel(c.LogLevel); err != nil {
 		return nil, err
 	}
 
@@ -118,4 +129,16 @@ func getenvDuration(key string, def time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("invalid %s: %w", key, err)
 	}
 	return d, nil
+}
+
+func getenvBool(key string, def bool) (bool, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return def, nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return b, nil
 }

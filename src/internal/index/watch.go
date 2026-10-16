@@ -3,7 +3,6 @@ package index
 import (
 	"context"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +57,7 @@ func NewWatcher(ctx context.Context, libraryRoots []string, db *DB, saver CoverS
 			}
 			if d.IsDir() {
 				if werr := fsw.Add(path); werr != nil {
-					log.Printf("watch: failed to watch %s: %v", path, werr)
+					logger.Error("watch: failed to watch")
 				}
 			}
 			return nil
@@ -84,11 +83,11 @@ func (w *Watcher) Run(ctx context.Context) {
 				return
 			}
 			w.handleEvent(event)
-		case err, ok := <-w.fsw.Errors:
+		case _, ok := <-w.fsw.Errors:
 			if !ok {
 				return
 			}
-			log.Printf("watch: error: %v", err)
+			logger.Error("watch: error")
 		}
 	}
 }
@@ -98,7 +97,7 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 	if event.Has(fsnotify.Create) {
 		if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
 			if err := w.fsw.Add(event.Name); err != nil {
-				log.Printf("watch: failed to watch new dir %s: %v", event.Name, err)
+				logger.Error("watch: failed to watch new dir")
 			}
 			return
 		}
@@ -121,14 +120,14 @@ func (w *Watcher) handleEvent(event fsnotify.Event) {
 	w.debounced(root+"\x00"+rel, func() {
 		if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
 			if err := w.db.DeleteByPath(root, rel); err != nil {
-				log.Printf("watch: delete %s: %v", rel, err)
+				logger.Error("watch: delete")
 			}
 			return
 		}
 		if err := w.db.UpsertPath(root, rel, w.saver); err != nil {
 			// File may have been removed between the event firing and this running
 			// (e.g. a rename shows up as create+delete); treat as non-fatal.
-			log.Printf("watch: upsert %s: %v", rel, err)
+			logger.Error("watch: upsert")
 		}
 	})
 }

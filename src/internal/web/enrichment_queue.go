@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -31,7 +30,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 	logState := func(state string) {
 		s.setEnrichmentQueueState(state)
 		if state != lastState {
-			log.Printf("enrichment queue: %s", state)
+			s.log().Info("enrichment queue state changed", "state", state)
 			lastState = state
 		}
 	}
@@ -45,9 +44,9 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		// Stored provider metadata can resolve against the local library without
 		// an active external integration, so always retry those matches first.
 		if promoted, err := s.promoteStoredConnectionMatches(); err != nil {
-			log.Printf("enrichment queue: promote stored connection matches: %v", err)
+			s.log().Error("enrichment queue: promote stored connection matches")
 		} else if promoted > 0 {
-			log.Printf("enrichment queue: promoted %d stored connection matches", promoted)
+			s.log().Error("enrichment queue: promoted stored connection matches")
 		}
 		if !s.Hardcover.Enabled() && !s.Chaptarr.Enabled() {
 			logState("idle, no integrations are enabled")
@@ -57,17 +56,17 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 
 		candidates, err := s.DB.BooksNeedingEnrichment(enrichmentBatchSize)
 		if err != nil {
-			log.Printf("enrichment queue: list candidates: %v", err)
+			s.log().Error("enrichment queue: list candidates")
 			sleepOrDone(ctx, idlePollInterval)
 			continue
 		}
 		connectionCandidates, err := s.Users.ConnectionEnrichmentCandidates(enrichmentBatchSize)
 		if err != nil {
-			log.Printf("enrichment queue: list connection candidates: %v", err)
+			s.log().Error("enrichment queue: list connection candidates")
 		}
 		coverCandidates, err := s.Users.ConnectionCoverCacheCandidates(enrichmentBatchSize)
 		if err != nil {
-			log.Printf("enrichment queue: list connection cover cache candidates: %v", err)
+			s.log().Error("enrichment queue: list connection cover cache candidates")
 		}
 		if len(candidates) == 0 && len(connectionCandidates) == 0 && len(coverCandidates) == 0 {
 			logState("idle, no eligible candidates")
@@ -77,7 +76,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 
 		overwriteCover := false
 		if settings, err := s.Users.GetIntegrationSettings(); err != nil {
-			log.Printf("enrichment queue: load integration settings: %v", err)
+			s.log().Error("enrichment queue: load integration settings")
 		} else {
 			overwriteCover = settings.HardcoverOverwriteCover
 		}
@@ -109,7 +108,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 		processedAny := false
 		if runEnrichmentWorkers(ctx, coverCandidates, func(ctx context.Context, c users.ConnectionEnrichmentCandidate) bool {
 			if err := s.cacheConnectionCover(ctx, c, c.CoverURL); err != nil {
-				log.Printf("enrichment queue: cache connection cover for %s/%s: %v", c.Provider, c.ExternalID, err)
+				s.log().Error("enrichment queue: cache connection cover for /")
 				s.markConnectionCoverCacheFailure(c, err)
 				return false
 			}
@@ -133,7 +132,7 @@ func (s *Server) RunEnrichmentQueue(ctx context.Context) {
 				processedAny = true
 			} else {
 				if err := s.DB.SetChaptarrStatus(c.ID, "no_match"); err != nil {
-					log.Printf("enrichment queue: mark chaptarr no_match failed for book %d: %v", c.ID, err)
+					s.log().Error("enrichment queue: mark chaptarr no_match failed for book")
 				}
 			}
 		}
@@ -207,7 +206,7 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	title := connectionDisplayTitle(c.Title)
 	matches, err := s.Hardcover.Search(ctx, title, c.Author, c.ISBN)
 	if err != nil {
-		log.Printf("enrichment queue: connection search failed for %s/%s: %v", c.Provider, c.ExternalID, err)
+		s.log().Error("enrichment queue: connection search failed for /")
 		if hardcover.Retryable(err) {
 			return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
 		}
@@ -219,18 +218,18 @@ func (s *Server) processConnectionHardcoverMatch(ctx context.Context, c users.Co
 	}
 	detail, err := s.Hardcover.Detail(ctx, best.ID)
 	if err != nil {
-		log.Printf("enrichment queue: connection detail failed for %s/%s: %v", c.Provider, c.ExternalID, err)
+		s.log().Error("enrichment queue: connection detail failed for /")
 		if hardcover.Retryable(err) {
 			return s.Users.SetConnectionItemEnrichment(c, "", "", "", "", "error") == nil
 		}
 	}
 	if err := s.Users.SetConnectionItemEnrichment(c, best.ID, best.Title, strings.Join(best.Authors, ", "), detail.Image, "done"); err != nil {
-		log.Printf("enrichment queue: save connection enrichment: %v", err)
+		s.log().Error("enrichment queue: save connection enrichment")
 		return true
 	}
 	if detail.Image != "" {
 		if err := s.cacheConnectionCover(ctx, c, detail.Image); err != nil {
-			log.Printf("enrichment queue: cache connection cover for %s/%s: %v", c.Provider, c.ExternalID, err)
+			s.log().Error("enrichment queue: cache connection cover for /")
 			s.markConnectionCoverCacheFailure(c, err)
 		}
 	}
@@ -243,7 +242,7 @@ func (s *Server) markConnectionCoverCacheFailure(c users.ConnectionEnrichmentCan
 		return
 	}
 	if saveErr := s.Users.SetConnectionItemCoverCacheFailed(c); saveErr != nil {
-		log.Printf("enrichment queue: mark uncached connection cover for %s/%s: %v", c.Provider, c.ExternalID, saveErr)
+		s.log().Error("enrichment queue: mark uncached connection cover for /")
 	}
 }
 
@@ -274,7 +273,7 @@ func (s *Server) batchChaptarrHardcoverLookups(ctx context.Context, candidates [
 	}
 	matches, details, err := s.Hardcover.GetByIDs(ctx, ids)
 	if err != nil {
-		log.Printf("enrichment queue: batch hardcover lookup failed: %v", err)
+		s.log().Error("enrichment queue: batch hardcover lookup failed")
 		return nil, nil, false
 	}
 	return matches, details, true
@@ -329,19 +328,19 @@ func (s *Server) promoteStoredConnectionMatches() (int, error) {
 func (s *Server) promoteConnectionMatch(c users.ConnectionEnrichmentCandidate, hardcoverID, title, author string) bool {
 	bookID, err := s.DB.FindConnectionBook("hardcover", hardcoverID, c.ISBN, title, author)
 	if err != nil {
-		log.Printf("enrichment queue: resolve enriched connection match: %v", err)
+		s.log().Error("enrichment queue: resolve enriched connection match")
 		return false
 	}
 	if bookID == 0 {
 		return false
 	}
 	if err := s.Users.SetConnectionItemMatch(c.Username, c.Provider, c.RemoteShelfKey, c.ExternalID, bookID); err != nil {
-		log.Printf("enrichment queue: save enriched connection match: %v", err)
+		s.log().Error("enrichment queue: save enriched connection match")
 		return false
 	}
 	shelves, err := s.Users.ConnectionShelves(c.Username, c.Provider)
 	if err != nil {
-		log.Printf("enrichment queue: load connection shelves: %v", err)
+		s.log().Error("enrichment queue: load connection shelves")
 		return false
 	}
 	for _, shelf := range shelves {
@@ -350,7 +349,7 @@ func (s *Server) promoteConnectionMatch(c users.ConnectionEnrichmentCandidate, h
 		}
 		items, err := s.Users.ConnectionItems(c.Username, c.Provider, c.RemoteShelfKey)
 		if err != nil {
-			log.Printf("enrichment queue: load connection items: %v", err)
+			s.log().Error("enrichment queue: load connection items")
 			return false
 		}
 		bookIDs := make([]int64, 0, len(items))
@@ -360,7 +359,7 @@ func (s *Server) promoteConnectionMatch(c users.ConnectionEnrichmentCandidate, h
 			}
 		}
 		if _, err := s.DB.ReplaceIntegrationShelfBooks(c.Username, c.Provider, c.RemoteShelfKey, connections.IntegrationShelfName(c.Provider, shelf.Name), bookIDs); err != nil {
-			log.Printf("enrichment queue: refresh integration shelf: %v", err)
+			s.log().Error("enrichment queue: refresh integration shelf")
 		}
 		return true
 	}
@@ -372,7 +371,7 @@ func (s *Server) promoteConnectionMatch(c users.ConnectionEnrichmentCandidate, h
 func (s *Server) backfillHardcoverIDsFromChaptarr(chBooks []chaptarr.Book) {
 	books, err := s.DB.BooksMissingHardcoverID(500)
 	if err != nil {
-		log.Printf("enrichment queue: list missing hardcover ids: %v", err)
+		s.log().Error("enrichment queue: list missing hardcover ids")
 		return
 	}
 	for _, book := range books {
@@ -381,7 +380,7 @@ func (s *Server) backfillHardcoverIDsFromChaptarr(chBooks []chaptarr.Book) {
 			continue
 		}
 		if err := s.DB.SetHardcoverID(book.ID, match.HardcoverID); err != nil {
-			log.Printf("enrichment queue: backfill hardcover id for book %d: %v", book.ID, err)
+			s.log().Error("enrichment queue: backfill hardcover id for book")
 		}
 	}
 }
@@ -402,7 +401,7 @@ func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCan
 			hc = knownHardcoverMatches[match.HardcoverID]
 			hcDetail = knownHardcoverDetails[match.HardcoverID]
 		} else if m, d, err := s.Hardcover.GetByID(ctx, match.HardcoverID); err != nil {
-			log.Printf("enrichment queue: hardcover daisy-chain lookup failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: hardcover daisy-chain lookup failed for book")
 		} else {
 			hc, hcDetail = m, d
 		}
@@ -410,19 +409,19 @@ func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCan
 
 	fields := mergeChaptarrFields(match, hc, hcDetail)
 	if err := s.DB.ApplyEnrichment(c.ID, fields, index.SourceChaptarr); err != nil {
-		log.Printf("enrichment queue: chaptarr apply enrichment failed for book %d: %v", c.ID, err)
+		s.log().Error("enrichment queue: chaptarr apply enrichment failed for book")
 		return true
 	}
 	if match.HardcoverID != "" {
 		if err := s.DB.SetHardcoverID(c.ID, match.HardcoverID); err != nil {
-			log.Printf("enrichment queue: save hardcover id for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: save hardcover id for book")
 		}
 	}
 
 	if hcDetail.Image != "" {
 		if book, err := s.DB.Get(c.ID); err == nil && book != nil && (overwriteCover || !book.HasCover) {
 			if err := s.applyCoverFromURL(ctx, c.ID, hcDetail.Image); err != nil {
-				log.Printf("enrichment queue: chaptarr cover fetch failed for book %d: %v", c.ID, err)
+				s.log().Error("enrichment queue: chaptarr cover fetch failed for book")
 			}
 		}
 	}
@@ -430,7 +429,7 @@ func (s *Server) processChaptarrMatch(ctx context.Context, c index.EnrichmentCan
 	// A duplicate merge can delete c.ID, so it must run after its cover work.
 	if fields.ISBN != "" {
 		if err := s.DB.MergeDuplicateISBN(c.ID, s.LibraryPaths); err != nil {
-			log.Printf("enrichment queue: isbn merge check failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: isbn merge check failed for book")
 		}
 	}
 	return true
@@ -443,38 +442,38 @@ func (s *Server) processHardcoverMatch(ctx context.Context, c index.EnrichmentCa
 
 	matches, err := s.Hardcover.Search(ctx, c.Title, c.Author, c.Identifier)
 	if err != nil {
-		log.Printf("enrichment queue: search failed for book %d: %v", c.ID, err)
+		s.log().Error("enrichment queue: search failed for book")
 		if hardcover.Retryable(err) {
 			if err := s.DB.SetEnrichmentRetry(c.ID); err != nil {
-				log.Printf("enrichment queue: defer retry failed for book %d: %v", c.ID, err)
+				s.log().Error("enrichment queue: defer retry failed for book")
 			}
 			return true
 		}
 		if err := s.DB.SetEnrichmentRetry(c.ID); err != nil {
-			log.Printf("enrichment queue: mark error failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: mark error failed for book")
 		}
 		if err := s.DB.SetHardcoverStatus(c.ID, "error"); err != nil {
-			log.Printf("enrichment queue: mark hardcover error failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: mark hardcover error failed for book")
 		}
 		return true
 	}
 	best, ok := hardcover.BestConfidentMatch(matches, c.Title, c.Author)
 	if !ok {
 		if err := s.DB.SetEnrichmentStatus(c.ID, "no_match"); err != nil {
-			log.Printf("enrichment queue: mark no_match failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: mark no_match failed for book")
 		}
 		if err := s.DB.SetHardcoverStatus(c.ID, "no_match"); err != nil {
-			log.Printf("enrichment queue: mark hardcover no_match failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: mark hardcover no_match failed for book")
 		}
 		return true
 	}
 
 	var detail hardcover.Detail
 	if d, err := s.Hardcover.Detail(ctx, best.ID); err != nil {
-		log.Printf("enrichment queue: detail lookup failed for book %d: %v", c.ID, err)
+		s.log().Error("enrichment queue: detail lookup failed for book")
 		if hardcover.Retryable(err) {
 			if err := s.DB.SetEnrichmentRetry(c.ID); err != nil {
-				log.Printf("enrichment queue: defer retry failed for book %d: %v", c.ID, err)
+				s.log().Error("enrichment queue: defer retry failed for book")
 			}
 			return true
 		}
@@ -484,28 +483,28 @@ func (s *Server) processHardcoverMatch(ctx context.Context, c index.EnrichmentCa
 
 	fields := hardcoverMetadataPatch(best, detail)
 	if err := s.DB.ApplyEnrichment(c.ID, fields, index.SourceHardcover); err != nil {
-		log.Printf("enrichment queue: apply enrichment failed for book %d: %v", c.ID, err)
+		s.log().Error("enrichment queue: apply enrichment failed for book")
 		s.DB.SetEnrichmentStatus(c.ID, "error")
 		return true
 	}
 	if err := s.DB.SetHardcoverID(c.ID, best.ID); err != nil {
-		log.Printf("enrichment queue: save hardcover id for book %d: %v", c.ID, err)
+		s.log().Error("enrichment queue: save hardcover id for book")
 	}
 
 	if detail.Image != "" {
 		if book, err := s.DB.Get(c.ID); err == nil && book != nil && (overwriteCover || !book.HasCover) {
 			if err := s.applyCoverFromURL(ctx, c.ID, detail.Image); err != nil {
-				log.Printf("enrichment queue: cover fetch failed for book %d: %v", c.ID, err)
+				s.log().Error("enrichment queue: cover fetch failed for book")
 			}
 		}
 	}
 
 	if err := s.DB.SetEnrichmentStatus(c.ID, "done"); err != nil {
-		log.Printf("enrichment queue: mark done failed for book %d: %v", c.ID, err)
+		s.log().Error("enrichment queue: mark done failed for book")
 	}
 	if fields.ISBN != "" {
 		if err := s.DB.MergeDuplicateISBN(c.ID, s.LibraryPaths); err != nil {
-			log.Printf("enrichment queue: isbn merge check failed for book %d: %v", c.ID, err)
+			s.log().Error("enrichment queue: isbn merge check failed for book")
 		}
 	}
 	return true

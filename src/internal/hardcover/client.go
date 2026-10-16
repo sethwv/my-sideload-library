@@ -11,13 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sethwv/my-sideload-library/internal/logging"
 )
 
 // endpoint is variable for legacy package tests. New tests can instead inject
@@ -272,7 +273,7 @@ func (c *Client) updateRateLimit(headers http.Header) {
 		c.tokens = min(c.tokens, float64(max(remaining, 0)))
 		if remaining <= 0 {
 			if retry := retryAfter(headers, now); retry > 0 {
-				log.Printf("hardcover: respecting exhausted rate-limit cooldown of %s", retry.Round(time.Second))
+				logging.For((*Client)(nil)).Warn("rate-limit cooldown active", "retry_after", retry.Round(time.Second))
 				c.nextAllowed = now.Add(retry)
 			}
 		}

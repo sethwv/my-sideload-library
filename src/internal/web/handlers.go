@@ -2,7 +2,7 @@ package web
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"runtime"
@@ -16,6 +16,7 @@ import (
 	"github.com/sethwv/my-sideload-library/internal/connections"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 	"github.com/sethwv/my-sideload-library/internal/index"
+	"github.com/sethwv/my-sideload-library/internal/logging"
 	"github.com/sethwv/my-sideload-library/internal/mail"
 	"github.com/sethwv/my-sideload-library/internal/tasks"
 	"github.com/sethwv/my-sideload-library/internal/thumbnail"
@@ -23,6 +24,7 @@ import (
 )
 
 type Server struct {
+	Logger          *slog.Logger
 	Auth            *auth.Authenticator
 	DB              *index.DB
 	Covers          *thumbnail.Store
@@ -44,6 +46,10 @@ type Server struct {
 	enrichmentMu         sync.RWMutex
 	enrichmentQueueState string
 	enrichmentUpdatedAt  time.Time
+}
+
+func (s *Server) log() *slog.Logger {
+	return logging.Or(s.Logger, (*Server)(nil))
 }
 
 const favoritesSlug = "favourites"
@@ -479,7 +485,7 @@ func (s *Server) AdminUsersInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.sendInviteEmail(r, email, token); err != nil {
-		log.Printf("send invite email to %s: %v", email, err)
+		s.log().Error("send invite email to")
 		s.renderAdminUsersError(w, r, "user created, but the invite email failed to send: "+err.Error())
 		return
 	}
@@ -516,7 +522,7 @@ func (s *Server) AdminUsersResendInvite(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := s.sendInviteEmail(r, user.Email, token); err != nil {
-		log.Printf("resend invite email to %s: %v", user.Email, err)
+		s.log().Error("resend invite email to")
 		s.renderAdminUsersError(w, r, "invite reissued, but the email failed to send: "+err.Error())
 		return
 	}
@@ -2019,16 +2025,16 @@ func (s *Server) ForgotPasswordSubmit(w http.ResponseWriter, r *http.Request) {
 	if found {
 		settings, err := s.Users.GetSMTPSettings()
 		if err != nil {
-			log.Printf("forgot password: load smtp settings: %v", err)
+			s.log().Error("forgot password: load smtp settings")
 		} else if !settings.Enabled() {
-			log.Printf("forgot password: SMTP not configured, cannot email reset link to %s", email)
+			s.log().Error("forgot password: SMTP not configured, cannot email reset link to")
 		} else if origin, err := s.emailOrigin(); err != nil {
-			log.Printf("forgot password: %v", err)
+			s.log().Error("forgot password")
 		} else {
 			link := origin + "/reset-password?token=" + token
 			body := fmt.Sprintf("Someone requested a password reset for your %s account.\n\nReset your password:\n%s\n\nThis link expires in 1 hour. If you didn't request this, you can ignore this email.", s.SiteName, link)
 			if err := mail.Send(settings, email, "Reset your "+s.SiteName+" password", body); err != nil {
-				log.Printf("forgot password: send email: %v", err)
+				s.log().Error("forgot password: send email")
 			}
 		}
 	}

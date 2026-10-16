@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/sethwv/my-sideload-library/internal/chaptarr"
@@ -24,7 +23,7 @@ func (s *Server) ReconcileChaptarrMatches(ctx context.Context) error {
 
 	overwriteCover := false
 	if settings, err := s.Users.GetIntegrationSettings(); err != nil {
-		log.Printf("chaptarr reconciliation: load integration settings: %v", err)
+		s.log().Error("chaptarr reconciliation: load integration settings")
 	} else {
 		overwriteCover = settings.HardcoverOverwriteCover
 	}

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +20,7 @@ import (
 	"github.com/sethwv/my-sideload-library/internal/connections"
 	"github.com/sethwv/my-sideload-library/internal/hardcover"
 	"github.com/sethwv/my-sideload-library/internal/index"
+	"github.com/sethwv/my-sideload-library/internal/logging"
 	"github.com/sethwv/my-sideload-library/internal/tasks"
 	"github.com/sethwv/my-sideload-library/internal/thumbnail"
 	"github.com/sethwv/my-sideload-library/internal/users"
@@ -30,6 +31,13 @@ import (
 // direct go build invocations usable when no build metadata is supplied.
 var buildVersion = "dev"
 var buildDate = "unknown"
+
+type serverComponent struct{}
+
+func fatal(logger *slog.Logger, message string, err error) {
+	logger.Error(message, "error", err)
+	os.Exit(1)
+}
 
 // runHealthcheck is invoked as `server -healthcheck` from the Dockerfile's
 // HEALTHCHECK instruction; distroless has no shell/curl for a CMD-SHELL probe.
@@ -56,37 +64,46 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "admin" {
 		if err := runAdmin(os.Args[2:]); err != nil {
-			log.Fatal(err)
+			logger, _ := logging.New("info")
+			logger.Error("admin command failed", "error", err)
+			os.Exit(1)
 		}
 		return
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config error: %v", err)
+		logger, _ := logging.New("info")
+		fatal(logger, "configuration error", err)
 	}
+	logger, err := logging.New(cfg.LogLevel)
+	if err != nil {
+		panic(err) // config.Load validates LOG_LEVEL.
+	}
+	logging.Configure(logger)
+	serverLog := logging.For((*serverComponent)(nil))
 
 	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
-		log.Fatalf("create data dir: %v", err)
+		fatal(serverLog, "create data directory", err)
 	}
 
 	db, err := index.Open(filepath.Join(cfg.DataDir, "index.db"))
 	if err != nil {
-		log.Fatalf("open index: %v", err)
+		fatal(serverLog, "open index", err)
 	}
 	defer db.Close()
 	if err := db.BackfillLibraryRoot(cfg.LibraryPaths[0]); err != nil {
-		log.Fatalf("backfill library root: %v", err)
+		fatal(serverLog, "backfill library root", err)
 	}
 
 	userStore, err := users.Open(filepath.Join(cfg.DataDir, "users.db"))
 	if err != nil {
-		log.Fatalf("open users store: %v", err)
+		fatal(serverLog, "open users store", err)
 	}
 	defer userStore.Close()
 	sessionSecret, err := sessionSecret(userStore, cfg.SessionSecret)
 	if err != nil {
-		log.Fatalf("load session secret: %v", err)
+		fatal(serverLog, "load session secret", err)
 	}
 
 	// SiteName/PublicURL/CoverWidth/PageSize/SessionTTL are DB-backed (admin
@@ -97,7 +114,7 @@ func main() {
 	// precedence pattern as integration_settings/HARDCOVER_API_TOKEN below).
 	generalSettings, err := userStore.GetGeneralSettings()
 	if err != nil {
-		log.Fatalf("load general settings: %v", err)
+		fatal(serverLog, "load general settings", err)
 	}
 	if generalSettings == (users.GeneralSettings{}) {
 		generalSettings = users.GeneralSettings{
@@ -109,13 +126,13 @@ func main() {
 			SessionTTL: cfg.SessionTTL,
 		}
 		if err := userStore.SaveGeneralSettings(generalSettings); err != nil {
-			log.Fatalf("seed general settings from env vars: %v", err)
+			fatal(serverLog, "seed general settings", err)
 		}
 	}
 
 	covers, err := thumbnail.NewStore(filepath.Join(cfg.DataDir, "covers"), generalSettings.CoverWidth)
 	if err != nil {
-		log.Fatalf("open cover store: %v", err)
+		fatal(serverLog, "open cover store", err)
 	}
 
 	// Hardcover/Chaptarr settings are DB-backed (admin Integrations page)
@@ -125,13 +142,13 @@ func main() {
 	// their token on upgrade, then the DB is authoritative from then on.
 	integrationSettings, err := userStore.GetIntegrationSettings()
 	if err != nil {
-		log.Fatalf("load integration settings: %v", err)
+		fatal(serverLog, "load integration settings", err)
 	}
 	if integrationSettings == (users.IntegrationSettings{}) && cfg.HardcoverToken != "" {
 		integrationSettings.HardcoverEnabled = true
 		integrationSettings.HardcoverToken = cfg.HardcoverToken
 		if err := userStore.SaveIntegrationSettings(integrationSettings); err != nil {
-			log.Fatalf("seed integration settings from HARDCOVER_API_TOKEN: %v", err)
+			fatal(serverLog, "seed integration settings", err)
 		}
 	}
 
@@ -139,9 +156,10 @@ func main() {
 	hc := hardcover.New(integrationSettings.HardcoverEnabled, integrationSettings.HardcoverToken)
 	ch := chaptarr.New(integrationSettings.ChaptarrEnabled, integrationSettings.ChaptarrURL, integrationSettings.ChaptarrAPIKey)
 	if err := ch.SetCacheStore(db); err != nil {
-		log.Fatalf("load chaptarr cache: %v", err)
+		fatal(serverLog, "load chaptarr cache", err)
 	}
 	srv := &web.Server{
+		Logger:          logging.For((*web.Server)(nil)),
 		Auth:            authn,
 		DB:              db,
 		Covers:          covers,
@@ -161,12 +179,12 @@ func main() {
 	}
 	taskStore, err := tasks.Open(filepath.Join(cfg.DataDir, "tasks.db"))
 	if err != nil {
-		log.Fatalf("open task store: %v", err)
+		fatal(serverLog, "open task store", err)
 	}
 	defer taskStore.Close()
 	smtpSettings, err := userStore.GetSMTPSettings()
 	if err != nil {
-		log.Fatalf("load SMTP settings: %v", err)
+		fatal(serverLog, "load SMTP settings", err)
 	}
 	taskManager := tasks.New(taskStore)
 	taskManager.Register(tasks.Task{Key: "rescan", Name: "Scan Library", Kind: tasks.KindJob, Runnable: true, NextRun: "Startup & On-Demand"}, func(context.Context) error {
@@ -174,7 +192,7 @@ func main() {
 			return err
 		}
 		if n, err := db.Count(index.Filter{}); err == nil {
-			log.Printf("indexed %d books", n)
+			serverLog.Info("library scan completed", "books", n)
 		}
 		return nil
 	})
@@ -203,24 +221,24 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := taskManager.Start(ctx); err != nil {
-		log.Fatalf("start task manager: %v", err)
+		fatal(serverLog, "start task manager", err)
 	}
 	if _, _, err := taskManager.Enqueue("rescan"); err != nil {
-		log.Printf("queue initial library scan: %v", err)
+		serverLog.Warn("queue initial library scan", "error", err)
 	}
-	log.Printf("queued library scan for %s", strings.Join(cfg.LibraryPaths, ", "))
+	serverLog.Info("queued library scan", "library_roots", len(cfg.LibraryPaths))
 
 	if err := taskManager.StartService(ctx, "filesystem-watcher", func(ctx context.Context) {
 		watcher, err := index.NewWatcher(ctx, cfg.LibraryPaths, db, covers)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.Printf("start watcher: %v", err)
+				serverLog.Error("start filesystem watcher", "error", err)
 			}
 			return
 		}
 		watcher.Run(ctx)
 	}); err != nil {
-		log.Fatalf("start filesystem watcher task: %v", err)
+		fatal(serverLog, "start filesystem watcher task", err)
 	}
 	// Single background loop for both integrations (idles, rather than
 	// exiting, while both are disabled) — see RunEnrichmentQueue's doc
@@ -229,19 +247,19 @@ func main() {
 	// polling ones, which enabling either from the admin Integrations page
 	// later still works without a restart.
 	if err := taskManager.StartService(ctx, "enrichment-queue", srv.RunEnrichmentQueue); err != nil {
-		log.Fatalf("start enrichment task: %v", err)
+		fatal(serverLog, "start enrichment task", err)
 	}
 	if err := taskManager.StartService(ctx, "chaptarr-refresh-scheduler", srv.RunChaptarrRefreshScheduler); err != nil {
-		log.Fatalf("start chaptarr refresh scheduler: %v", err)
+		fatal(serverLog, "start Chaptarr refresh scheduler", err)
 	}
 	if generalSettings.PublicURL == "" {
-		log.Printf("warning: Public URL is not set; password-reset and invite emails are disabled")
+		serverLog.Warn("public URL is not set; password-reset and invite emails are disabled")
 	}
 	if err := taskManager.StartService(ctx, "digest-scheduler", srv.RunDigestScheduler); err != nil {
-		log.Fatalf("start digest task: %v", err)
+		fatal(serverLog, "start digest scheduler", err)
 	}
 	if err := taskManager.StartService(ctx, "hardcover-shelf-sync-scheduler", srv.RunHardcoverShelfSyncScheduler); err != nil {
-		log.Fatalf("start Hardcover shelf sync scheduler: %v", err)
+		fatal(serverLog, "start Hardcover shelf sync scheduler", err)
 	}
 
 	mux := http.NewServeMux()
@@ -334,9 +352,14 @@ func main() {
 	mux.Handle("GET /books/{id}/edit-metadata", authn.RequireManageServer(http.HandlerFunc(srv.BookEditMetadata)))
 	mux.Handle("POST /books/{id}/edit-metadata", authn.RequireManageServer(protectedPost(http.HandlerFunc(srv.BookEditMetadataSave))))
 
+	handler := http.Handler(mux)
+	if cfg.LogHTTP {
+		handler = logging.HTTPAccess(logging.For((*http.Server)(nil)), handler)
+	}
+	handler = logging.HTTPFailures(logging.For((*http.Server)(nil)), handler)
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           mux,
+		Handler:           handler,
 		ReadTimeout:       15 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
@@ -347,21 +370,21 @@ func main() {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		log.Printf("sideload-library starting on :%s (library=%s data=%s)", cfg.Port, strings.Join(cfg.LibraryPaths, ", "), cfg.DataDir)
+		serverLog.Info("server starting", "port", cfg.Port, "library_roots", len(cfg.LibraryPaths))
 		serveErr <- httpSrv.ListenAndServe()
 	}()
 
 	select {
 	case err := <-serveErr:
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			fatal(serverLog, "server error", err)
 		}
 	case <-ctx.Done():
-		log.Println("shutting down...")
+		serverLog.Info("server shutting down")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("shutdown error: %v", err)
+			serverLog.Error("shutdown error", "error", err)
 		}
 	}
 }

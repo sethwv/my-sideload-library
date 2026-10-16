@@ -5,9 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/sethwv/my-sideload-library/internal/logging"
 
 	_ "modernc.org/sqlite"
 )
@@ -240,6 +242,7 @@ func unixTime(value sql.NullInt64) time.Time {
 
 type Manager struct {
 	store    *Store
+	logger   *slog.Logger
 	mu       sync.RWMutex
 	tasks    map[string]Task
 	order    []string
@@ -249,7 +252,13 @@ type Manager struct {
 }
 
 func New(store *Store) *Manager {
-	return &Manager{store: store, tasks: make(map[string]Task), handlers: make(map[string]func(context.Context) error), wake: make(chan struct{}, 1), done: make(chan struct{})}
+	return &Manager{store: store, logger: logging.For((*Manager)(nil)), tasks: make(map[string]Task), handlers: make(map[string]func(context.Context) error), wake: make(chan struct{}, 1), done: make(chan struct{})}
+}
+
+// WithLogger supplies the component logger used for task lifecycle events.
+func (m *Manager) WithLogger(logger *slog.Logger) *Manager {
+	m.logger = logging.Or(logger, (*Manager)(nil))
+	return m
 }
 
 func (m *Manager) Register(task Task, handler func(context.Context) error) {
@@ -275,6 +284,7 @@ func (m *Manager) SetEnabled(key string, enabled bool) {
 	}
 	task.Disabled = !enabled
 	m.tasks[key] = task
+	m.logger.Info("task availability changed", "task", key, "enabled", enabled)
 }
 
 func (m *Manager) Start(ctx context.Context) error {
@@ -299,6 +309,7 @@ func (m *Manager) Enqueue(key string) (Run, bool, error) {
 	}
 	run, created, err := m.store.enqueue(task)
 	if created {
+		m.logger.Info("task queued", "task", key, "run_id", run.ID)
 		select {
 		case m.wake <- struct{}{}:
 		default:
@@ -320,17 +331,22 @@ func (m *Manager) Run(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
+	started := time.Now()
+	m.logger.Info("task started", "task", key, "run_id", run.ID)
 	err = handler(ctx)
 	status, message := StatusSucceeded, ""
 	if err != nil {
 		status, message = StatusFailed, err.Error()
-		log.Printf("task %s (run %d) failed: %v", key, run.ID, err)
+		m.logger.Error("task failed", "task", key, "run_id", run.ID, "error", err)
 	}
 	if finishErr := m.store.finish(run.ID, status, message); finishErr != nil {
 		if err != nil {
 			return fmt.Errorf("task failed: %w; record completion: %v", err, finishErr)
 		}
 		return fmt.Errorf("record task completion: %w", finishErr)
+	}
+	if err == nil {
+		m.logger.Info("task completed", "task", key, "run_id", run.ID, "duration", time.Since(started))
 	}
 	return err
 }
@@ -347,13 +363,16 @@ func (m *Manager) StartService(ctx context.Context, key string, fn func(context.
 		return err
 	}
 	go func() {
+		m.logger.Info("task service started", "task", key, "run_id", run.ID)
 		fn(ctx)
 		status := StatusStopped
 		if ctx.Err() == nil {
 			status = StatusFailed
 		}
 		if err := m.store.finish(run.ID, status, ""); err != nil {
-			log.Printf("task service %s: record completion: %v", key, err)
+			m.logger.Error("record task service completion", "task", key, "error", err)
+		} else {
+			m.logger.Info("task service stopped", "task", key, "run_id", run.ID, "status", status)
 		}
 	}()
 	return nil
@@ -424,21 +443,28 @@ func (m *Manager) work(ctx context.Context) {
 			handler := m.handlers[run.TaskKey]
 			m.mu.RUnlock()
 			if task.Disabled {
-				_ = m.store.finish(run.ID, StatusStopped, "task disabled")
+				if finishErr := m.store.finish(run.ID, StatusStopped, "task disabled"); finishErr != nil {
+					m.logger.Error("stop disabled task", "task", run.TaskKey, "run_id", run.ID, "error", finishErr)
+				}
 				continue
 			}
 			if handler == nil {
 				_ = m.store.finish(run.ID, StatusFailed, "no task handler registered")
 				continue
 			}
+			started := time.Now()
+			m.logger.Info("task started", "task", run.TaskKey, "run_id", run.ID)
 			err = handler(ctx)
 			status, message := StatusSucceeded, ""
 			if err != nil {
 				status, message = StatusFailed, err.Error()
-				log.Printf("task %s (run %d) failed: %v", run.TaskKey, run.ID, err)
+				m.logger.Error("task failed", "task", run.TaskKey, "run_id", run.ID, "error", err)
 			}
 			if finishErr := m.store.finish(run.ID, status, message); finishErr != nil {
-				log.Printf("task %s: record completion: %v", run.TaskKey, finishErr)
+				m.logger.Error("record task completion", "task", run.TaskKey, "error", finishErr)
+			}
+			if err == nil {
+				m.logger.Info("task completed", "task", run.TaskKey, "run_id", run.ID, "duration", time.Since(started))
 			}
 			continue
 		}

@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"log"
 	"time"
 )
 
@@ -21,7 +20,7 @@ func (s *Server) RunChaptarrRefreshScheduler(ctx context.Context) {
 		if next.IsZero() || !next.After(time.Now()) {
 			if s.Tasks != nil {
 				if _, _, err := s.Tasks.Enqueue("chaptarr-refresh"); err != nil {
-					log.Printf("chaptarr refresh scheduler: queue refresh: %v", err)
+					s.log().Error("chaptarr refresh scheduler: queue refresh")
 				}
 			}
 			sleepOrDone(ctx, chaptarrRefreshRetryDelay)

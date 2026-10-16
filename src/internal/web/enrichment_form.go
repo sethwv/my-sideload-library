@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -47,7 +46,7 @@ func (s *Server) BookEditMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	source, err := s.DB.GetEnrichmentSource(id)
 	if err != nil {
-		log.Printf("edit-metadata: load source for book %d: %v", id, err)
+		s.log().Error("edit-metadata: load source for book")
 	}
 
 	mode := r.URL.Query().Get("mode")
@@ -97,7 +96,7 @@ func (s *Server) runHardcoverSearch(ctx context.Context, data map[string]any, id
 		matches, searchErr = s.Hardcover.Search(ctx, manualQuery, "", "")
 	}
 	if searchErr != nil {
-		log.Printf("edit-metadata search failed for book %d: %v", id, searchErr)
+		s.log().Error("edit-metadata search failed for book")
 		data["SearchError"] = "Hardcover search failed."
 	}
 
@@ -127,7 +126,7 @@ func (s *Server) runHardcoverSearch(ctx context.Context, data map[string]any, id
 	if selected != nil {
 		var detail hardcover.Detail
 		if d, err := s.Hardcover.Detail(ctx, selected.ID); err != nil {
-			log.Printf("edit-metadata detail lookup failed for book %d: %v", id, err)
+			s.log().Error("edit-metadata detail lookup failed for book")
 		} else {
 			detail = d
 		}
@@ -163,7 +162,7 @@ func (s *Server) runChaptarrSearch(ctx context.Context, data map[string]any, id 
 		var hcDetail hardcover.Detail
 		if s.Hardcover.Enabled() && match.HardcoverID != "" {
 			if m, d, err := s.Hardcover.GetByID(ctx, match.HardcoverID); err != nil {
-				log.Printf("edit-metadata chaptarr daisy-chain lookup failed for book %d: %v", id, err)
+				s.log().Error("edit-metadata chaptarr daisy-chain lookup failed for book")
 			} else {
 				hc, hcDetail = m, d
 			}
@@ -312,12 +311,12 @@ func (s *Server) BookEditMetadataSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.DB.SetEnrichmentStatus(id, "done"); err != nil {
-		log.Printf("edit-metadata save: mark done failed for book %d: %v", id, err)
+		s.log().Error("edit-metadata save: mark done failed for book")
 	}
 	if r.FormValue("cover_action") == "use_hardcover_cover" {
 		if coverURL := r.FormValue("hardcover_cover_url"); coverURL != "" {
 			if err := s.applyCoverFromURL(r.Context(), id, coverURL); err != nil {
-				log.Printf("edit-metadata save: cover apply failed for book %d: %v", id, err)
+				s.log().Error("edit-metadata save: cover apply failed for book")
 			}
 		}
 	}

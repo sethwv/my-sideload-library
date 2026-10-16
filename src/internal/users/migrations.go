@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pressly/goose/v3"
+	"github.com/sethwv/my-sideload-library/internal/logging"
 	"github.com/sethwv/my-sideload-library/internal/sqlite"
 )
 
@@ -14,6 +15,7 @@ var migrationsFS embed.FS
 
 func applyMigrations(db *sql.DB) error {
 	goose.SetBaseFS(migrationsFS)
+	goose.SetLogger(logging.NewGooseLogger("users"))
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		return fmt.Errorf("set migration dialect: %w", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -65,7 +64,7 @@ func (d *DB) scan(libraryRoots []string, saver CoverSaver, force bool) error {
 	for _, root := range libraryRoots {
 		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
-				log.Printf("scan: walk error at %s: %v", path, err)
+				logger.Error("scan: walk error at")
 				return nil
 			}
 			if entry.IsDir() {
@@ -83,12 +82,12 @@ func (d *DB) scan(libraryRoots []string, saver CoverSaver, force bool) error {
 
 			info, err := entry.Info()
 			if err != nil {
-				log.Printf("scan: stat error for %s: %v", rel, err)
+				logger.Error("scan: stat error for")
 				return nil
 			}
 
 			if err := d.upsertIfChanged(root, rel, path, info, saver, force); err != nil {
-				log.Printf("scan: upsert error for %s: %v", rel, err)
+				logger.Error("scan: upsert error for")
 			}
 			return nil
 		})
@@ -156,7 +155,7 @@ func (d *DB) upsertIfChanged(root, relPath, fullPath string, info fs.FileInfo, s
 		title = filepath.Base(relPath)
 		sortTitle = strings.ToLower(title)
 		parseErrStr = parseErr.Error()
-		log.Printf("scan: failed to parse %s: %v", relPath, parseErr)
+		logger.Error("scan: failed to parse")
 	} else {
 		title = meta.Title
 		sortTitle = meta.SortTitle
@@ -179,7 +178,7 @@ func (d *DB) upsertIfChanged(root, relPath, fullPath string, info fs.FileInfo, s
 			if p, err := saver.SaveCover(existingID, meta.CoverData, meta.CoverMediaType); err == nil {
 				coverPath = p
 			} else {
-				log.Printf("scan: cover save failed for %s: %v", relPath, err)
+				logger.Error("scan: cover save failed for")
 			}
 		}
 		_, err := d.sql.Exec(`
@@ -224,7 +223,7 @@ func (d *DB) upsertIfChanged(root, relPath, fullPath string, info fs.FileInfo, s
 			if p, err := saver.SaveCover(bookID, meta.CoverData, meta.CoverMediaType); err == nil {
 				_, _ = d.sql.Exec(`UPDATE books SET cover_path=? WHERE id=?`, p, bookID)
 			} else {
-				log.Printf("scan: cover save failed for %s: %v", relPath, err)
+				logger.Error("scan: cover save failed for")
 			}
 		}
 	}

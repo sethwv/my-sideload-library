@@ -28,6 +28,8 @@ Serve the application through an HTTPS reverse proxy. The application listens on
 | `DATA_DIR` | `/data` | Writable application data |
 | `SESSION_SECRET` | Empty | Runtime session-cookie signing-key override |
 | `PORT` | `8080` | HTTP listen port |
+| `LOG_LEVEL` | `info` | Minimum structured log level: `debug`, `info`, `warn`, or `error` |
+| `LOG_HTTP` | `false` | Emit safe debug-level HTTP access records |
 
 Configure the site name, public URL, cover width, page size, session lifetime, and enrichment providers from the administrator interface after setup. Those settings are persisted in `DATA_DIR/users.db`.
 

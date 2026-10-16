@@ -47,6 +47,8 @@ For Docker development, add local credentials and the EPUB bind mount in `docker
 | `DATA_DIR` | `/data` | Writable SQLite indexes, user database, and cover cache |
 | `SESSION_SECRET` | Empty | Runtime session-cookie signing-key override |
 | `PORT` | `8080` | HTTP listen port |
+| `LOG_LEVEL` | `info` | Minimum structured log level: `debug`, `info`, `warn`, or `error` |
+| `LOG_HTTP` | `false` | Emit safe debug-level HTTP access records (method, route, status, bytes, duration) |
 
 `SESSION_SECRET` is generated and stored in `DATA_DIR/users.db` when unset. Setting it uses that value for the current process without changing the stored secret, so changing or removing an override invalidates active sessions. Configure site settings and integrations from the administrator interface; they are persisted in `DATA_DIR/users.db`.
 
