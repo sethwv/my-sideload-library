@@ -98,6 +98,8 @@ button:hover { background: #f7f7f7; }
   outline-offset: 2px;
 }
 .inline-form { display: inline; }
+.connection-actions { margin-top: 1em; }
+.connection-tab-check { display: inline-block; vertical-align: -0.15em; }
 .btn-link {
   border: none;
   background: none;

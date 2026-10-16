@@ -1,9 +1,25 @@
 {{define "content"}}
 {{template "topbar" .}}{{template "accounttabs" .}}
 {{if .Error}}<p class="error">{{.Error}}</p>{{end}}{{if .Status}}<p class="muted">{{.Status}}</p>{{end}}
-<h1>Connections</h1>
-<h2>Goodreads Import</h2>
-<p class="muted">Export your Goodreads library as CSV from <a href="https://www.goodreads.com/review/import" target="_blank" rel="noopener noreferrer">Goodreads Library Export</a>, then select the shelves Sideload Library should mirror.</p>
-<form method="POST" action="/account/connections/goodreads" enctype="multipart/form-data" class="modal-field-form">{{template "csrf_field" .}}<input type="file" name="file" accept=".csv,text/csv" required><button type="submit">Import Goodreads CSV</button></form>
-{{if .GoodreadsShelves}}<form method="POST" action="/account/connections/goodreads/shelves" class="modal-field-form">{{template "csrf_field" .}}<h3>Sync these shelves</h3>{{range .GoodreadsShelves}}<label><input type="checkbox" name="shelf-{{.RemoteKey}}" {{if .Selected}}checked{{end}}> {{.Name}}</label><br>{{end}}<button type="submit">Save and sync shelves</button></form>{{end}}
+<!-- <h1>Connections</h1> -->
+
+<nav class="integration-tabs" aria-label="Connections providers">
+  <a href="/account/connections?provider=goodreads" aria-current="{{if eq .ConnectionTab "goodreads"}}page{{end}}" class="{{if eq .ConnectionTab "goodreads"}}is-active{{end}}">Goodreads{{if and .GoodreadsConnection .GoodreadsConnection.Enabled}} <svg class="connection-tab-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="Connected"><polyline points="20 6 9 17 4 12"/></svg>{{end}}</a>
+  <a href="/account/connections?provider=hardcover" aria-current="{{if eq .ConnectionTab "hardcover"}}page{{end}}" class="{{if eq .ConnectionTab "hardcover"}}is-active{{end}}">Hardcover{{if and .HardcoverConnection .HardcoverConnection.Enabled}} <svg class="connection-tab-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="Connected"><polyline points="20 6 9 17 4 12"/></svg>{{end}}</a>
+</nav>
+
+{{if eq .ConnectionTab "goodreads"}}
+<section class="integration-card is-first-tab-active" aria-labelledby="goodreads-heading">
+  <!-- <h2 id="goodreads-heading">Goodreads Import</h2> -->
+  <p class="muted">Export your Goodreads library as CSV from <a href="https://www.goodreads.com/review/import" target="_blank" rel="noopener noreferrer">Goodreads Library Export</a>.</p>
+  <form method="POST" action="/account/connections/goodreads" enctype="multipart/form-data" class="modal-field-form">{{template "csrf_field" .}}<input type="file" name="file" accept=".csv,text/csv" required><button type="submit">{{if .GoodreadsConnection}}Update{{else}}Import{{end}} Goodreads CSV</button></form>
+  {{if .GoodreadsShelves}}<form id="goodreads-shelves-form" method="POST" action="/account/connections/goodreads/shelves" class="modal-field-form">{{template "csrf_field" .}}<h3>Sync these shelves</h3>{{range .GoodreadsShelves}}<label><input type="checkbox" name="shelf-{{.RemoteKey}}" {{if .Selected}}checked{{end}}> {{.Name}} ({{.ItemCount}} books)</label><br>{{end}}</form>{{end}}
+  {{if .GoodreadsConnection}}<div class="connection-actions">{{if .GoodreadsShelves}}<button type="submit" form="goodreads-shelves-form">Sync</button> {{end}}<form method="POST" action="/account/connections/goodreads/disconnect" class="inline-form" data-confirm="This removes your Goodreads data and its connected shelves." data-confirm-title="Remove Goodreads?">{{template "csrf_field" .}}<button type="submit">Remove Goodreads</button></form></div>{{end}}
+</section>
+{{else}}
+<section class="integration-card" aria-labelledby="hardcover-heading">
+  <!-- <h2 id="hardcover-heading">Hardcover Sync</h2> -->
+  {{if .HardcoverConnection}}<p class="muted">Connected.{{if .HardcoverConnection.LastSuccessAt}} Last synced {{.HardcoverConnection.LastSuccessAt}}.{{end}}{{if .HardcoverConnection.LastError}} {{.HardcoverConnection.LastError}}{{end}}</p>{{if .HardcoverShelves}}<form id="hardcover-shelves-form" method="POST" action="/account/connections/hardcover/shelves" class="modal-field-form">{{template "csrf_field" .}}<h3>Sync these shelves</h3>{{range .HardcoverShelves}}<label><input type="checkbox" name="shelf-{{.RemoteKey}}" {{if .Selected}}checked{{end}}> {{.Name}} ({{.ItemCount}} books)</label><br>{{end}}</form>{{end}}<div class="connection-actions">{{if .HardcoverShelves}}<button type="submit" form="hardcover-shelves-form">Sync</button> {{end}}<form method="POST" action="/account/connections/hardcover/disconnect" class="inline-form" data-confirm="This disconnects Hardcover and removes its connected shelves." data-confirm-title="Disconnect Hardcover?">{{template "csrf_field" .}}<button type="submit">Disconnect Hardcover</button></form></div>{{else}}<p class="muted"><a href="https://hardcover.app/account/api" target="_blank" rel="noopener">Create a Hardcover API key</a> with the <code>read:me</code>, <code>read:library</code>, and <code>read:catalog</code> scopes, then paste the copied key below.</p><form method="POST" action="/account/connections/hardcover" class="modal-field-form">{{template "csrf_field" .}}<label>Personal API key <input type="password" name="token" autocomplete="off" required></label><button type="submit">Connect Hardcover API</button></form>{{end}}
+</section>
+{{end}}
 {{end}}

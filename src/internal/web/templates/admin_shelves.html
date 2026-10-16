@@ -28,4 +28,13 @@
 <tr><td class="muted">No public shelves.</td></tr>
 {{end}}
 </tbody></table>
+
+<h2>Connected shelves</h2>
+<table class="account-shelves"><tbody>
+{{range .ConnectedShelves}}
+<tr><td class="account-shelf-name"><a href="/shelves/{{.ID}}"><svg class="shelf-visibility-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Connected shelf"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg> {{.Name}}</a></td><td class="muted">{{.Username}}</td></tr>
+{{else}}
+<tr><td class="muted">No connected shelves.</td></tr>
+{{end}}
+</tbody></table>
 {{end}}

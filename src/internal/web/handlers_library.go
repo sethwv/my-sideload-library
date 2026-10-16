@@ -221,7 +221,7 @@ func (s *Server) ShelfHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to load shelf", http.StatusInternalServerError)
 			return
 		}
-		if managed != nil && !managed.IsIntegration() {
+		if managed != nil {
 			shelf = &index.ShelfAccess{Shelf: *managed, Role: "manager"}
 		}
 	}
@@ -239,6 +239,10 @@ func (s *Server) ShelfHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, shelf *index.ShelfAccess) {
 	username, _ := auth.UsernameFromContext(r.Context())
+	sourceUsername := username
+	if shelf.Role == "manager" {
+		sourceUsername = shelf.Username
+	}
 	q := r.URL.Query()
 	sort := q.Get("sort")
 	if sort != "provider" && sort != "title" && sort != "author" && sort != "added" {
@@ -257,7 +261,7 @@ func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, sh
 		pageSize = 48
 	}
 	search := strings.TrimSpace(q.Get("q"))
-	total, err := s.Users.CountConnectionItems(username, shelf.Provider, shelf.RemoteKey, search)
+	total, err := s.Users.CountConnectionItems(sourceUsername, shelf.Provider, shelf.RemoteKey, search)
 	if err != nil {
 		http.Error(w, "failed to load connected shelf", http.StatusInternalServerError)
 		return
@@ -269,7 +273,7 @@ func (s *Server) renderConnectedShelf(w http.ResponseWriter, r *http.Request, sh
 	if page > totalPages {
 		page = totalPages
 	}
-	items, err := s.Users.ConnectionItemsPage(username, shelf.Provider, shelf.RemoteKey, search, sort, dir == "desc", page, pageSize)
+	items, err := s.Users.ConnectionItemsPage(sourceUsername, shelf.Provider, shelf.RemoteKey, search, sort, dir == "desc", page, pageSize)
 	if err != nil {
 		http.Error(w, "failed to load connected shelf", http.StatusInternalServerError)
 		return

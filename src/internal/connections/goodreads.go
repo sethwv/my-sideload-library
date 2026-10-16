@@ -70,9 +70,20 @@ func ParseGoodreadsCSV(r io.Reader) (Snapshot, error) {
 	}
 	result := Snapshot{Items: items}
 	for key, name := range shelves {
-		result.Shelves = append(result.Shelves, Shelf{Key: key, Name: name})
+		result.Shelves = append(result.Shelves, Shelf{Key: key, Name: goodreadsShelfName(name)})
 	}
 	return result, nil
+}
+
+func goodreadsShelfName(name string) string {
+	words := strings.FieldsFunc(strings.TrimSpace(name), func(r rune) bool { return r == '-' || r == '_' || r == ' ' })
+	for i, word := range words {
+		if word == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(word[:1]) + strings.ToLower(word[1:])
+	}
+	return strings.Join(words, " ")
 }
 
 func shelfKeys(exclusive, bookshelves string) []string {
