@@ -31,6 +31,7 @@ type Task struct {
 	Name     string
 	Kind     Kind
 	Runnable bool
+	Disabled bool
 	Hidden   bool
 	NextRun  string
 }
@@ -263,6 +264,19 @@ func (m *Manager) Register(task Task, handler func(context.Context) error) {
 	}
 }
 
+// SetEnabled enables or disables a registered job without changing its
+// definition or history. Disabled jobs cannot be queued or run manually.
+func (m *Manager) SetEnabled(key string, enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	task, ok := m.tasks[key]
+	if !ok {
+		return
+	}
+	task.Disabled = !enabled
+	m.tasks[key] = task
+}
+
 func (m *Manager) Start(ctx context.Context) error {
 	if err := m.store.RecoverInterrupted(); err != nil {
 		return err
@@ -280,7 +294,7 @@ func (m *Manager) Enqueue(key string) (Run, bool, error) {
 	m.mu.RLock()
 	task, ok := m.tasks[key]
 	m.mu.RUnlock()
-	if !ok || !task.Runnable {
+	if !ok || !task.Runnable || task.Disabled {
 		return Run{}, false, fmt.Errorf("task cannot be run")
 	}
 	run, created, err := m.store.enqueue(task)
@@ -299,7 +313,7 @@ func (m *Manager) Run(ctx context.Context, key string) error {
 	task, ok := m.tasks[key]
 	handler := m.handlers[key]
 	m.mu.RUnlock()
-	if !ok || task.Kind != KindJob || handler == nil {
+	if !ok || task.Disabled || task.Kind != KindJob || handler == nil {
 		return fmt.Errorf("task cannot be run")
 	}
 	run, err := m.store.startService(task)
@@ -406,8 +420,13 @@ func (m *Manager) work(ctx context.Context) {
 		run, ok, err := m.store.claimNext(m.names())
 		if err == nil && ok {
 			m.mu.RLock()
+			task := m.tasks[run.TaskKey]
 			handler := m.handlers[run.TaskKey]
 			m.mu.RUnlock()
+			if task.Disabled {
+				_ = m.store.finish(run.ID, StatusStopped, "task disabled")
+				continue
+			}
 			if handler == nil {
 				_ = m.store.finish(run.ID, StatusFailed, "no task handler registered")
 				continue

@@ -39,7 +39,7 @@ func (s *Server) RunDigestScheduler(ctx context.Context) {
 		default:
 		}
 
-		if s.digestDue() {
+		if s.smtpAvailable() && s.digestDue() {
 			if s.Tasks == nil {
 				s.maybeSendDigest()
 			} else if _, _, err := s.Tasks.Enqueue("email-digest"); err != nil {
@@ -78,7 +78,7 @@ func (s *Server) nextDigestDelay() time.Duration {
 // SendDigestNow runs the scheduled digest immediately, for the admin task.
 func (s *Server) SendDigestNow() error {
 	if !s.smtpAvailable() {
-		return fmt.Errorf("SMTP is not configured")
+		return nil
 	}
 	s.maybeSendDigest(true)
 	return nil

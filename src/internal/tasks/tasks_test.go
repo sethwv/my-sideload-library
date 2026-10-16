@@ -61,6 +61,21 @@ func TestManagerRunsQueuedJobOnce(t *testing.T) {
 	t.Fatal("queued job did not complete")
 }
 
+func TestManagerDisablesJob(t *testing.T) {
+	manager := newTestManager(t)
+	manager.Register(Task{Key: "digest", Name: "Digest", Kind: KindJob, Runnable: true}, func(context.Context) error {
+		t.Fatal("disabled task ran")
+		return nil
+	})
+	manager.SetEnabled("digest", false)
+	if _, _, err := manager.Enqueue("digest"); err == nil {
+		t.Fatal("Enqueue succeeded for disabled task")
+	}
+	if err := manager.Run(context.Background(), "digest"); err == nil {
+		t.Fatal("Run succeeded for disabled task")
+	}
+}
+
 func TestManagerRecoversInterruptedRuns(t *testing.T) {
 	manager := newTestManager(t)
 	manager.Register(Task{Key: "scan", Name: "Scan", Kind: KindJob, Runnable: true}, func(context.Context) error { return nil })

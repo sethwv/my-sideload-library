@@ -1007,6 +1007,9 @@ func (s *Server) ServerSMTPSave(w http.ResponseWriter, r *http.Request) {
 		s.renderAdminSMTPError(w, r, "failed to save SMTP settings: "+err.Error(), "")
 		return
 	}
+	if s.Tasks != nil {
+		s.Tasks.SetEnabled("email-digest", settings.Enabled())
+	}
 
 	http.Redirect(w, r, "/admin/smtp", http.StatusSeeOther)
 }
@@ -1177,7 +1180,7 @@ func (s *Server) populateTaskNextRun(summary *tasks.Summary) {
 			summary.NextRun = "Pending initial refresh"
 		}
 		return
-	case "email-digest":
+	case "email-digest", "digest-scheduler":
 	default:
 		return
 	}

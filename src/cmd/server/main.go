@@ -164,6 +164,10 @@ func main() {
 		log.Fatalf("open task store: %v", err)
 	}
 	defer taskStore.Close()
+	smtpSettings, err := userStore.GetSMTPSettings()
+	if err != nil {
+		log.Fatalf("load SMTP settings: %v", err)
+	}
 	taskManager := tasks.New(taskStore)
 	taskManager.Register(tasks.Task{Key: "rescan", Name: "Scan Library", Kind: tasks.KindJob, Runnable: true, NextRun: "Startup & On-Demand"}, func(context.Context) error {
 		if err := db.Scan(cfg.LibraryPaths, covers); err != nil {
@@ -174,7 +178,7 @@ func main() {
 		}
 		return nil
 	})
-	taskManager.Register(tasks.Task{Key: "email-digest", Name: "Email digest", Kind: tasks.KindJob, Runnable: true, NextRun: "Weekly"}, func(context.Context) error {
+	taskManager.Register(tasks.Task{Key: "email-digest", Name: "Email digest", Kind: tasks.KindJob, Runnable: true, Disabled: !smtpSettings.Enabled(), NextRun: "Weekly"}, func(context.Context) error {
 		return srv.SendDigestNow()
 	})
 	taskManager.Register(tasks.Task{Key: "chaptarr-refresh", Name: "Refresh Chaptarr catalog", Kind: tasks.KindJob, Runnable: true, NextRun: "Every 12 hours"}, func(ctx context.Context) error {
